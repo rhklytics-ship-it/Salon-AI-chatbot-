@@ -1,0 +1,7 @@
+{
+  "name": "rhklytics-chatbot-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI booking assistant demo (Glow Studio) by RHKLytics"
+}
