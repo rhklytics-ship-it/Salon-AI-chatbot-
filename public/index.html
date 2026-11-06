@@ -121,13 +121,9 @@
   <div class="wrap">Glow Studio is a fictional business created to demonstrate an AI booking assistant.</div>
 </footer>
 
-<!-- Hidden form so Netlify Forms records bookings made in the chat -->
-<form name="booking" data-netlify="true" netlify-honeypot="bot-field" hidden>
-  <input name="bot-field"><input name="service"><input name="date"><input name="time">
-  <input name="name"><input name="phone"><input name="business">
-</form>
 
 <script src="/widget.js"
+        data-business="glow-studio"
         data-name="Glow Studio"
         data-color="#B8466B"
         data-greeting="Hi, welcome to Glow Studio! I can help with prices, opening hours or booking an appointment."

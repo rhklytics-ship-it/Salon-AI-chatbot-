@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI assistant demo by RHKLytics</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root { --brand: #0F7C78; --ink: #1d2430; --muted: #5d6673; --line: #e4e7ea; --bg: #fafaf9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1.02rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { width: min(1000px, 100% - 32px); margin-inline: auto; }
+  h1, h2 { line-height: 1.15; margin: 0; }
+  .bar { background: #1d2430; color: #fff; font-size: .93rem; }
+  .bar .wrap { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; align-items: center; padding: 10px 0; }
+  .bar a { color: #9fe3dc; font-weight: 700; }
+  .hero { background: var(--brand); color: #fff; padding: 56px 0; }
+  .hero .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .82rem; font-weight: 700; opacity: .85; margin: 0 0 10px; }
+  .hero h1 { font-size: clamp(2.1rem, 5vw, 3.3rem); }
+  .hero p { font-size: 1.12rem; max-width: 46ch; margin: 16px 0 26px; opacity: .95; }
+  .btn { display: inline-block; background: #fff; color: var(--brand); border: 0; border-radius: 999px; padding: 12px 24px; font: inherit; font-weight: 700; cursor: pointer; }
+  section { padding: 52px 0; }
+  section h2 { font-size: 1.7rem; margin-bottom: 22px; }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 44px; }
+  .list li { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px dashed var(--line); }
+  .list span { display: block; color: var(--muted); font-size: .9rem; }
+  .list b { white-space: nowrap; color: var(--brand); }
+  .info { background: #fff; border-top: 1px solid var(--line); }
+  .info p { margin: 0 0 6px; color: var(--muted); }
+  footer { padding: 26px 0; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); }
+  .missing { padding: 90px 0; text-align: center; }
+  @media (max-width: 720px) { .list { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="bar"><div class="wrap">
+  <span id="barText">AI assistant demo by RHKLytics.</span>
+  <a href="https://rhklytics.netlify.app/" target="_blank" rel="noopener">Get one for your business</a>
+</div></div>
+
+<main id="page" hidden>
+  <div class="hero"><div class="wrap">
+    <p class="kicker" id="type"></p>
+    <h1 id="name"></h1>
+    <p id="tagline"></p>
+    <button class="btn" id="openChat" type="button">Ask our assistant</button>
+  </div></div>
+
+  <section><div class="wrap">
+    <h2>Services and prices</h2>
+    <ul class="list" id="services"></ul>
+  </div></section>
+
+  <section class="info"><div class="wrap">
+    <h2>Opening hours</h2>
+    <div id="hours"></div>
+    <p id="location"></p>
+  </div></section>
+</main>
+
+<div class="missing wrap" id="missing" hidden>
+  <h1>Demo not found</h1>
+  <p>Check the link, or <a href="/">see the Glow Studio demo</a>.</p>
+</div>
+
+<footer><div class="wrap" id="foot">Demo built by RHKLytics.</div></footer>
+
+
+<script>
+(async function () {
+  const key = location.pathname.replace(/^\/demo\/?/, "").replace(/\/$/, "")
+           || new URLSearchParams(location.search).get("b") || "";
+  const $ = id => document.getElementById(id);
+  let b = null;
+  try {
+    const res = await fetch("/api/profile?b=" + encodeURIComponent(key));
+    if (res.ok) b = await res.json();
+  } catch {}
+  if (!b) { $("missing").hidden = false; return; }
+
+  document.title = b.name + " | AI assistant demo by RHKLytics";
+  document.documentElement.style.setProperty("--brand", b.color || "#0F7C78");
+  $("type").textContent = b.type + " · " + b.location;
+  $("name").textContent = b.name;
+  $("tagline").textContent = b.tagline || "";
+  $("location").textContent = b.location;
+
+  if (b.prospect) {
+    $("barText").textContent = "Demo made by RHKLytics to show " + b.name +
+      " an AI assistant. This is not their official website, and bookings made here are not sent to them.";
+    $("foot").textContent = "Prepared by RHKLytics as a demo for " + b.name +
+      ". Details are taken from public information and may be out of date.";
+  } else {
+    $("barText").textContent = b.name + " is a sample business created to demonstrate an AI booking assistant.";
+    $("foot").textContent = b.name + " is fictional. Demo built by RHKLytics.";
+  }
+
+  for (const s of b.services || []) {
+    const li = document.createElement("li");
+    const left = document.createElement("div");
+    left.textContent = s.name;
+    const sub = document.createElement("span"); sub.textContent = s.duration || "";
+    left.appendChild(sub);
+    const price = document.createElement("b"); price.textContent = s.price || "";
+    li.append(left, price);
+    $("services").appendChild(li);
+  }
+  for (const h of b.hours || []) {
+    const p = document.createElement("p"); p.textContent = h; $("hours").appendChild(p);
+  }
+  $("page").hidden = false;
+
+  const w = document.createElement("script");
+  w.src = "/widget.js";
+  w.dataset.business = key.toLowerCase();
+  w.dataset.name = b.name;
+  w.dataset.color = b.color || "#0F7C78";
+  w.dataset.greeting = b.greeting || "Hi! How can I help you today?";
+  if (b.chips && b.chips.length) w.dataset.chips = b.chips.join("|");
+  if (b.whatsapp) w.dataset.whatsapp = b.whatsapp;
+  document.body.appendChild(w);
+
+  $("openChat").addEventListener("click", () => {
+    const panel = document.querySelector(".rk-panel");
+    if (panel && !panel.classList.contains("rk-open")) document.querySelector(".rk-launch").click();
+  });
+})();
+</script>
+</body>
+</html>

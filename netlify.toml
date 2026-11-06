@@ -4,3 +4,22 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# One demo page per business: /demo/glow-studio, /demo/core-pilates, ...
+[[redirects]]
+  from = "/demo/*"
+  to = "/demo.html"
+  status = 200
+
+# Keep demo pages out of Google
+[[headers]]
+  for = "/demo/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+# Owner bookings screen: keep out of Google
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"

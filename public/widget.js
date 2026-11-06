@@ -2,6 +2,7 @@
   RHKLytics chat widget
   Add to any website with one line before </body>:
   <script src="https://YOUR-SITE.netlify.app/widget.js"
+          data-business="glow-studio"
           data-name="Glow Studio" data-color="#B8466B"
           data-greeting="Hi! I can help with prices, opening hours and bookings."
           data-whatsapp="971500000000"></script>
@@ -10,10 +11,12 @@
   const script = document.currentScript;
   const cfg = {
     name: script?.dataset.name || "Assistant",
+    business: script?.dataset.business || "",
     color: script?.dataset.color || "#0F7C78",
     greeting: script?.dataset.greeting || "Hi! How can I help you today?",
     whatsapp: (script?.dataset.whatsapp || "").replace(/\D/g, ""),
     endpoint: script?.dataset.endpoint || new URL("/api/chat", script?.src || location.href).href,
+    bookEndpoint: new URL("/api/book", script?.src || location.href).href,
     chips: (script?.dataset.chips || "See prices|Book an appointment|Opening hours").split("|").filter(Boolean),
   };
 
@@ -39,6 +42,20 @@
   .rk-card b{display:block;margin-bottom:4px}
   .rk-card dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0;font-size:14px}
   .rk-card dt{color:#6B7380}.rk-card dd{margin:0}
+  .rk-slots{align-self:stretch;background:#fff;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .rk-slots b{font-size:14px}
+  .rk-times{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .rk-times button,.rk-more{border:1px solid ${cfg.color};color:${cfg.color};background:#fff;border-radius:10px;padding:8px 4px;font:inherit;font-size:13px;cursor:pointer;min-height:40px}
+  .rk-times button[aria-pressed="true"]{background:${cfg.color};color:#fff}
+  .rk-times button:disabled{opacity:.45;cursor:default}
+  .rk-more{border-style:dashed}
+  .rk-book[hidden]{display:none}
+  .rk-book{display:flex;flex-direction:column;gap:8px;border-top:1px solid #EEE;padding-top:10px}
+  .rk-book label{font-size:12px;color:#6B7380;display:flex;flex-direction:column;gap:3px}
+  .rk-book input{border:1px solid #D9D4CF;border-radius:10px;padding:9px 12px;font:inherit}
+  .rk-book .rk-go{border:0;background:${cfg.color};color:#fff;border-radius:999px;padding:11px;font:inherit;font-weight:600;cursor:pointer}
+  .rk-book .rk-go:disabled{opacity:.5;cursor:default}
+  .rk-book small{color:#8A1C1C;font-size:12px}
   .rk-typing{align-self:flex-start;background:#fff;border-radius:14px;padding:12px 14px;display:flex;gap:4px}
   .rk-typing i{width:7px;height:7px;border-radius:50%;background:#9AA1AB;animation:rk-b 1s infinite}
   .rk-typing i:nth-child(2){animation-delay:.15s}.rk-typing i:nth-child(3){animation-delay:.3s}
@@ -119,13 +136,13 @@
     return (h % 12 || 12) + ":" + m[2] + (h < 12 ? " am" : " pm");
   }
 
-  function bookingCard(b) {
+  function bookingCard(b, demo) {
     const card = document.createElement("div");
     card.className = "rk-card";
     const title = document.createElement("b");
-    title.textContent = "Booking confirmed";
+    title.textContent = demo ? "Demo booking saved" : "Booking confirmed";
     const dl = document.createElement("dl");
-    [["Service", b.service], ["Date", niceDate(b.date)], ["Time", niceTime(b.time)], ["Name", b.name], ["Mobile", b.phone]].forEach(([k, v]) => {
+    [["Service", b.service], ["Date", niceDate(b.date)], ["Time", niceTime(b.time)], ["Name", b.name], ["Mobile", b.phone], ["Ref", b.ref]].forEach(([k, v]) => {
       const dt = document.createElement("dt"); dt.textContent = k;
       const dd = document.createElement("dd"); dd.textContent = v;
       dl.append(dt, dd);
@@ -135,11 +152,83 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  // Saves the booking to Netlify Forms (form named "booking" on the page).
-  function saveBooking(b) {
-    const data = new URLSearchParams({ "form-name": "booking", ...b, business: cfg.name });
-    fetch("/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: data.toString() })
-      .catch(() => {});
+  // Free times as buttons; tapping one opens a short name + mobile form.
+  function slotPicker(sl) {
+    const box = document.createElement("div");
+    box.className = "rk-slots";
+    const head = document.createElement("b");
+    head.textContent = sl.service + " · " + niceDate(sl.date);
+    const grid = document.createElement("div");
+    grid.className = "rk-times";
+    grid.setAttribute("role", "group");
+    grid.setAttribute("aria-label", "Free times");
+    const SHOW = 12;
+    let picked = null;
+    const buttons = [];
+    function addTime(t) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = niceTime(t); b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", () => {
+        picked = t;
+        buttons.forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+        form.hidden = false;
+        title.textContent = "Book " + niceTime(t) + " on " + niceDate(sl.date);
+        nameIn.focus();
+      });
+      buttons.push(b); grid.appendChild(b);
+    }
+    sl.times.slice(0, SHOW).forEach(addTime);
+    box.append(head, grid);
+    if (sl.times.length > SHOW) {
+      const more = document.createElement("button");
+      more.type = "button"; more.className = "rk-more"; more.textContent = "Show all " + sl.times.length + " times";
+      more.addEventListener("click", () => { sl.times.slice(SHOW).forEach(addTime); more.remove(); });
+      box.appendChild(more);
+    }
+
+    const form = document.createElement("form");
+    form.className = "rk-book"; form.hidden = true;
+    form.innerHTML = '<b></b><label>Your name<input name="name" autocomplete="name" maxlength="60" required></label>' +
+      '<label>Mobile number<input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="05X XXX XXXX" required></label>' +
+      '<small role="alert"></small><button class="rk-go" type="submit">Confirm booking</button>';
+    const title = form.querySelector("b");
+    const nameIn = form.querySelector('[name="name"]');
+    const phoneIn = form.querySelector('[name="phone"]');
+    const msg = form.querySelector("small");
+    const go = form.querySelector(".rk-go");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!picked) return;
+      msg.textContent = ""; go.disabled = true; go.textContent = "Booking...";
+      try {
+        const res = await fetch(cfg.bookEndpoint, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ business: cfg.business || undefined, service: sl.service, date: sl.date, time: picked,
+            name: nameIn.value, phone: phoneIn.value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.booking) {
+          box.remove();
+          bookingCard(data.booking, data.demo);
+          history.push({ role: "assistant", content: `Booked: ${data.booking.service} on ${data.booking.date} at ${data.booking.time} for ${data.booking.name} (ref ${data.booking.ref}).` });
+          add("rk-bot", "You're booked! Your reference is " + data.booking.ref + ". Anything else I can help with?");
+          return;
+        }
+        if (res.status === 409 && data.slots) {
+          box.remove();
+          add("rk-err", data.error);
+          if (data.slots.times.length) slotPicker(data.slots);
+          return;
+        }
+        msg.textContent = data.error || "Something went wrong. Please try again.";
+      } catch {
+        msg.textContent = "Can't reach the booking system. Check your connection and try again.";
+      }
+      go.disabled = false; go.textContent = "Confirm booking";
+    });
+    box.appendChild(form);
+    log.appendChild(box);
+    log.scrollTop = log.scrollHeight;
   }
 
   async function send(text) {
@@ -159,7 +248,7 @@
       const res = await fetch(cfg.endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, business: cfg.business || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       typing.remove();
@@ -169,7 +258,7 @@
       } else {
         add("rk-bot", data.reply);
         history.push({ role: "assistant", content: data.reply });
-        if (data.booking) { bookingCard(data.booking); saveBooking(data.booking); }
+        if (data.slots && data.slots.times && data.slots.times.length) slotPicker(data.slots);
       }
     } catch {
       typing.remove();
