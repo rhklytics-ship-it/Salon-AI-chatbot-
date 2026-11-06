@@ -1,6 +1,6 @@
 import { findBusiness } from "../businesses.mjs";
 import { nowIn, addDays, weekday, niceDate, findService, dateProblem } from "../booking/calendar.mjs";
-import { availability } from "../booking/store.mjs";
+import { availability, getBooking } from "../booking/store.mjs";
 import { json, publicTimes } from "../booking/http.mjs";
 
 const DEFAULT_BUSINESS = "glow-studio";
@@ -19,7 +19,30 @@ function nextDays(b) {
   }).join("\n");
 }
 
-function systemPrompt(b) {
+// Bookings this visitor made in this chat, checked against the calendar.
+async function verifiedBookings(key, input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  for (const item of input.slice(0, 5)) {
+    const id = String(item?.ref || ""), date = String(item?.date || "");
+    if (!/^[A-Z0-9]{6}$/.test(id) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const bk = await getBooking(key, date, id);
+    if (bk) out.push(bk);
+  }
+  return out;
+}
+
+function bookingsNote(list) {
+  if (!list.length) return "";
+  const lines = list.map(b => `- ${b.service}, ${niceDate(b.date)} at ${b.time}, for ${b.name}, ref ${b.id}: ${b.status === "cancelled" ? "CANCELLED by the salon" : "CONFIRMED"}`);
+  return `
+Bookings this customer made in this chat (checked in the booking calendar just now, so they are real):
+${lines.join("\n")}
+The customer made these by tapping a time and confirming in the booking form, not through you. Never say a booking was not made or that a confirmation was a mistake. If they say "no", "thanks" or similar after booking, close warmly and briefly.
+`;
+}
+
+function systemPrompt(b, booked = []) {
   const services = b.services.map(s => `- ${s.name}: ${s.price}, ${s.duration}`).join("\n");
   const now = nowIn(b.timezone);
   const clock = `${String(Math.floor(now.minutes / 60)).padStart(2, "0")}:${String(now.minutes % 60).padStart(2, "0")}`;
@@ -51,7 +74,7 @@ ${services}
 Policies:
 ${b.policies.map(p => "- " + p).join("\n")}
 ${booking}
-
+${bookingsNote(booked)}
 Rules:
 - Only use the information above and tool results. Never invent services, prices, offers or availability.
 - If asked something you cannot answer from this information, or anything unrelated to the business, say so politely and give this: ${b.handoff}${b.prospect ? `
@@ -146,7 +169,7 @@ export default async (req) => {
   if (!messages) return json(400, { error: "Invalid conversation." });
 
   try {
-    const system = systemPrompt(business);
+    const system = systemPrompt(business, await verifiedBookings(key, body?.bookings));
     const toolList = tools(business);
     let slots = null;
 

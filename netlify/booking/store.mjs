@@ -70,6 +70,10 @@ export async function createBooking(biz, business, service, date, time, customer
   return null;
 }
 
+export async function getBooking(biz, date, id) {
+  return store().get(bookingKey(biz, date, id), { type: "json" });
+}
+
 export async function cancelBooking(biz, date, id) {
   const key = bookingKey(biz, date, id);
   const booking = await store().get(key, { type: "json" });

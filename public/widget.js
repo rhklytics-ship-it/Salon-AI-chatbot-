@@ -112,6 +112,7 @@
     : "AI assistant";
 
   const history = [];
+  const booked = [];   // { ref, date } of bookings made in this chat, sent so the server can verify them
   let busy = false;
 
   function add(cls, text) {
@@ -210,8 +211,11 @@
         if (res.ok && data.booking) {
           box.remove();
           bookingCard(data.booking, data.demo);
-          history.push({ role: "assistant", content: `Booked: ${data.booking.service} on ${data.booking.date} at ${data.booking.time} for ${data.booking.name} (ref ${data.booking.ref}).` });
-          add("rk-bot", "You're booked! Your reference is " + data.booking.ref + ". Anything else I can help with?");
+          booked.push({ ref: data.booking.ref, date: data.booking.date });
+          const done = "You're booked for " + data.booking.service + " on " + niceDate(data.booking.date) + " at " + niceTime(data.booking.time) +
+            ". Your reference is " + data.booking.ref + ". Anything else I can help with?";
+          history.push({ role: "assistant", content: done });
+          add("rk-bot", done);
           return;
         }
         if (res.status === 409 && data.slots) {
@@ -248,7 +252,7 @@
       const res = await fetch(cfg.endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history, business: cfg.business || undefined }),
+        body: JSON.stringify({ messages: history, business: cfg.business || undefined, bookings: booked }),
       });
       const data = await res.json().catch(() => ({}));
       typing.remove();
