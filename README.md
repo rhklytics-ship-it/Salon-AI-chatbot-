@@ -104,6 +104,10 @@ website address (CORS) when it is embedded there.
    and the customer sees the times still free.
 4. The salon sees bookings at `/admin.html`. Cancelling frees the time immediately.
    Phone and walk-in bookings added there block the calendar too.
+5. **Download Excel** on the same screen exports any date range (up to 3 months) as a
+   formatted spreadsheet: a Bookings sheet with filters, ready to print, and a Summary
+   sheet with bookings and hours per day and per service. The Excel library is bundled
+   in `public/vendor/`, so nothing loads from outside.
 
 Each business's calendar is set in `netlify/businesses.mjs` under `booking`:
 - `staff`: how many clients can be served at once (stylists, chairs or rooms)

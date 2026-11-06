@@ -2,7 +2,7 @@
 // Protected by the BOOKINGS_ADMIN_KEY environment variable.
 import { timingSafeEqual, createHash } from "node:crypto";
 import { businesses, findBusiness } from "../businesses.mjs";
-import { findService, isTime, isDate, nowIn, dateProblem } from "../booking/calendar.mjs";
+import { findService, isTime, isDate, nowIn, dateProblem, addDays } from "../booking/calendar.mjs";
 import { listBookings, cancelBooking, createBooking, availability } from "../booking/store.mjs";
 import { json, cleanCustomer } from "../booking/http.mjs";
 
@@ -30,6 +30,16 @@ export default async (req) => {
       });
     }
     const key = url.searchParams.get("business") || "";
+    const from = url.searchParams.get("from"), to = url.searchParams.get("to");
+    if (from || to) {
+      // Date range, for the Excel export (up to 92 days).
+      if (!findBusiness(key)?.booking || !isDate(from) || !isDate(to) || to < from || to > addDays(from, 92)) {
+        return json(400, { error: "Choose a range of up to 3 months." });
+      }
+      const all = [];
+      for (let d = from; d <= to; d = addDays(d, 1)) all.push(...await listBookings(key, d));
+      return json(200, { bookings: all });
+    }
     const date = url.searchParams.get("date") || "";
     if (!findBusiness(key)?.booking || !isDate(date)) return json(400, { error: "Choose a business and date." });
     return json(200, { bookings: await listBookings(key, date) });

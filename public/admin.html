@@ -74,6 +74,18 @@
       <p class="msg" id="listMsg" role="status"></p>
     </div>
 
+    <form class="panel" id="export">
+      <b>Download bookings as Excel</b>
+      <div class="row" style="margin-top:12px">
+        <label>From<input type="date" id="exFrom" required></label>
+        <label>To<input type="date" id="exTo" required></label>
+        <button type="button" class="ghost" data-range="week">This week</button>
+        <button type="button" class="ghost" data-range="month">This month</button>
+        <button type="submit">Download Excel</button>
+      </div>
+      <p class="msg" id="exMsg" role="status"></p>
+    </form>
+
     <form class="panel" id="add">
       <b>Add a phone or walk-in booking</b>
       <div class="row" style="margin-top:12px">
@@ -121,8 +133,38 @@
     $("login").hidden = true; $("app").hidden = false;
     pickBiz();
   }
+  const addD = (d, n) => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  function setRange(kind) {
+    const t = biz().today;
+    if (kind === "month") { $("exFrom").value = t.slice(0, 8) + "01"; const e = new Date(Date.UTC(+t.slice(0, 4), +t.slice(5, 7), 0)); $("exTo").value = e.toISOString().slice(0, 10); }
+    else { $("exFrom").value = t; $("exTo").value = addD(t, 6); }
+  }
+  function loadScript(src) {
+    return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); });
+  }
+  async function downloadExcel(e) {
+    e.preventDefault();
+    const b = biz(), from = $("exFrom").value, to = $("exTo").value;
+    $("exMsg").className = "msg"; $("exMsg").textContent = "Preparing...";
+    try {
+      if (!window.ExcelJS) await loadScript("/vendor/exceljs-4.4.0.min.js");
+      if (!window.buildBookingsWorkbook) await loadScript("/bookings-export.js");
+      const r = await api(`/api/admin?business=${encodeURIComponent(b.key)}&from=${from}&to=${to}`);
+      if (!r.ok) throw new Error(r.data.error || "Could not load bookings.");
+      const wb = window.buildBookingsWorkbook(window.ExcelJS, { businessName: b.name, staffLabel: b.staffLabel, from, to, bookings: r.data.bookings });
+      const buf = await wb.xlsx.writeBuffer();
+      const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      const a = document.createElement("a"); a.href = url; a.download = `${b.key}-bookings-${from}-to-${to}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+      $("exMsg").textContent = `Downloaded ${r.data.bookings.length} bookings.`;
+    } catch (err) {
+      $("exMsg").className = "msg err"; $("exMsg").textContent = err.message || "Could not create the file.";
+    }
+  }
+
   function pickBiz() {
     const b = biz();
+    setRange("week");
     $("date").value = b.today;
     $("staffHead").textContent = b.staffLabel;
     $("svc").innerHTML = "";
@@ -166,6 +208,8 @@
 
   $("login").addEventListener("submit", (e) => { e.preventDefault(); key = e.target.key.value; $("loginMsg").textContent = ""; start(); });
   $("biz").addEventListener("change", pickBiz);
+  $("export").addEventListener("submit", downloadExcel);
+  document.querySelectorAll("[data-range]").forEach(btn => btn.addEventListener("click", () => setRange(btn.dataset.range)));
   $("date").addEventListener("change", load);
   $("prev").addEventListener("click", () => shiftDate(-1));
   $("next").addEventListener("click", () => shiftDate(1));
