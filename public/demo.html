@@ -14,6 +14,10 @@
   .bar { background: #1d2430; color: #fff; font-size: .93rem; }
   .bar .wrap { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; align-items: center; padding: 10px 0; }
   .bar a { color: #9fe3dc; font-weight: 700; }
+  .barlinks { display: flex; align-items: center; gap: 14px; }
+  .langbtn { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.6); border-radius: 999px; padding: 3px 12px; font: inherit; font-size: .9rem; cursor: pointer; }
+  .langbtn:focus-visible { outline: 3px solid #F4B33E; outline-offset: 2px; }
+  html[dir=rtl] body { font-family: system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif; }
   .hero { background: var(--brand); color: #fff; padding: 56px 0; }
   .hero .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .82rem; font-weight: 700; opacity: .85; margin: 0 0 10px; }
   .hero h1 { font-size: clamp(2.1rem, 5vw, 3.3rem); }
@@ -35,7 +39,10 @@
 <body>
 <div class="bar"><div class="wrap">
   <span id="barText">AI assistant demo by RHKLytics.</span>
-  <a href="https://rhklytics.netlify.app/" target="_blank" rel="noopener">Get one for your business</a>
+  <span class="barlinks">
+    <button type="button" class="langbtn" id="langBtn">عربي</button>
+    <a id="getOne" href="https://rhklytics.netlify.app/" target="_blank" rel="noopener">Get one for your business</a>
+  </span>
 </div></div>
 
 <main id="page" hidden>
@@ -47,12 +54,12 @@
   </div></div>
 
   <section><div class="wrap">
-    <h2>Services and prices</h2>
+    <h2 id="hServices">Services and prices</h2>
     <ul class="list" id="services"></ul>
   </div></section>
 
   <section class="info"><div class="wrap">
-    <h2>Opening hours</h2>
+    <h2 id="hHours">Opening hours</h2>
     <div id="hours"></div>
     <p id="location"></p>
   </div></section>
@@ -65,7 +72,6 @@
 
 <footer><div class="wrap" id="foot">Demo built by RHKLytics.</div></footer>
 
-
 <script>
 (async function () {
   const key = location.pathname.replace(/^\/demo\/?/, "").replace(/\/$/, "")
@@ -77,38 +83,64 @@
     if (res.ok) b = await res.json();
   } catch {}
   if (!b) { $("missing").hidden = false; return; }
+  const ar = b.ar || {};
 
-  document.title = b.name + " | AI assistant demo by RHKLytics";
-  document.documentElement.style.setProperty("--brand", b.color || "#0F7C78");
-  $("type").textContent = b.type + " · " + b.location;
-  $("name").textContent = b.name;
-  $("tagline").textContent = b.tagline || "";
-  $("location").textContent = b.location;
+  const T = {
+    en: { ask: "Ask our assistant", services: "Services and prices", hours: "Opening hours", getOne: "Get one for your business", toggle: "عربي",
+          title: b.name + " | AI assistant demo by RHKLytics",
+          barProspect: "Demo made by RHKLytics to show " + b.name + " an AI assistant. This is not their official website, and bookings made here are not sent to them.",
+          footProspect: "Prepared by RHKLytics as a demo for " + b.name + ". Details are taken from public information and may be out of date.",
+          barSample: b.name + " is a sample business created to demonstrate an AI booking assistant.",
+          footSample: b.name + " is fictional. Demo built by RHKLytics." },
+    ar: { ask: "اسأل مساعدنا", services: "الخدمات والأسعار", hours: "مواعيد العمل", getOne: "احصل على مساعد لنشاطك", toggle: "English",
+          title: b.name + " | مساعد ذكي تجريبي من RHKLytics",
+          barProspect: "نسخة تجريبية من RHKLytics لعرض مساعد ذكي على " + b.name + ". هذا ليس الموقع الرسمي، والحجوزات هنا لا تُرسل إليهم.",
+          footProspect: "أعدّتها RHKLytics كنسخة تجريبية لـ " + b.name + ". المعلومات مأخوذة من مصادر عامة وقد لا تكون محدّثة.",
+          barSample: b.name + " نشاط تجريبي للتعريف بمساعد الحجز الذكي.",
+          footSample: b.name + " نشاط افتراضي. تطوير RHKLytics." },
+  };
+  const arPrice = (p) => String(p || "").replace(/^from AED\s*([\d,]+)/i, "ابتداءً من $1 درهم").replace(/^AED\s*([\d,]+)/i, "$1 درهم");
+  const arDur = (d) => String(d || "").replace(/(\d+)\s*min each/i, "$1 دقيقة لكل حصة").replace(/(\d+)\s*min/i, "$1 دقيقة");
+  let lang = (new URLSearchParams(location.search).get("lang") === "ar") ? "ar" : "en";
 
-  if (b.prospect) {
-    $("barText").textContent = "Demo made by RHKLytics to show " + b.name +
-      " an AI assistant. This is not their official website, and bookings made here are not sent to them.";
-    $("foot").textContent = "Prepared by RHKLytics as a demo for " + b.name +
-      ". Details are taken from public information and may be out of date.";
-  } else {
-    $("barText").textContent = b.name + " is a sample business created to demonstrate an AI booking assistant.";
-    $("foot").textContent = b.name + " is fictional. Demo built by RHKLytics.";
+  function render() {
+    const t = T[lang], A = lang === "ar";
+    document.documentElement.lang = lang;
+    document.documentElement.dir = A ? "rtl" : "ltr";
+    document.title = t.title;
+    $("type").textContent = (A && ar.type || b.type) + " · " + (A && ar.location || b.location);
+    $("name").textContent = b.name;
+    $("tagline").textContent = A && ar.tagline || b.tagline || "";
+    $("location").textContent = A && ar.location || b.location;
+    $("openChat").textContent = t.ask;
+    $("hServices").textContent = t.services;
+    $("hHours").textContent = t.hours;
+    $("getOne").textContent = t.getOne;
+    $("langBtn").textContent = t.toggle;
+    $("langBtn").setAttribute("lang", A ? "en" : "ar");
+    $("barText").textContent = b.prospect ? t.barProspect : t.barSample;
+    $("foot").textContent = b.prospect ? t.footProspect : t.footSample;
+    $("services").innerHTML = "";
+    for (const s of b.services || []) {
+      const li = document.createElement("li");
+      const left = document.createElement("div");
+      left.textContent = A && s.name_ar || s.name;
+      const sub = document.createElement("span"); sub.textContent = A ? arDur(s.duration) : (s.duration || "");
+      left.appendChild(sub);
+      const price = document.createElement("b"); price.textContent = A ? arPrice(s.price) : (s.price || "");
+      li.append(left, price);
+      $("services").appendChild(li);
+    }
+    $("hours").innerHTML = "";
+    for (const h of (A && ar.hours) || b.hours || []) {
+      const p = document.createElement("p"); p.textContent = h; $("hours").appendChild(p);
+    }
   }
-
-  for (const s of b.services || []) {
-    const li = document.createElement("li");
-    const left = document.createElement("div");
-    left.textContent = s.name;
-    const sub = document.createElement("span"); sub.textContent = s.duration || "";
-    left.appendChild(sub);
-    const price = document.createElement("b"); price.textContent = s.price || "";
-    li.append(left, price);
-    $("services").appendChild(li);
-  }
-  for (const h of b.hours || []) {
-    const p = document.createElement("p"); p.textContent = h; $("hours").appendChild(p);
-  }
+  function setLang(l) { if (l === lang) return; lang = l; render(); if (window.RKChat) window.RKChat.setLang(l); }
+  render();
   $("page").hidden = false;
+  $("langBtn").addEventListener("click", () => setLang(lang === "ar" ? "en" : "ar"));
+  window.addEventListener("rk-lang", (e) => { if (e.detail !== lang) { lang = e.detail; render(); } });
 
   const w = document.createElement("script");
   w.src = "/widget.js";
@@ -116,8 +148,11 @@
   w.dataset.name = b.name;
   w.dataset.color = b.color || "#0F7C78";
   w.dataset.greeting = b.greeting || "Hi! How can I help you today?";
+  if (ar.greeting) w.dataset.greetingAr = ar.greeting;
   if (b.chips && b.chips.length) w.dataset.chips = b.chips.join("|");
+  if (ar.chips && ar.chips.length) w.dataset.chipsAr = ar.chips.join("|");
   if (b.whatsapp) w.dataset.whatsapp = b.whatsapp;
+  w.dataset.lang = lang;
   document.body.appendChild(w);
 
   $("openChat").addEventListener("click", () => {
