@@ -1,9 +1,10 @@
-// Books a slot the customer picked in the chat. No AI involved here:
-// the slot is checked against the calendar and claimed atomically.
+// Books the time a patient picked (from the chat or the live schedule).
+// No AI involved: the time is checked against the calendar and claimed atomically.
 import { findBusiness } from "../businesses.mjs";
-import { findService, isTime, nowIn, dateProblem } from "../booking/calendar.mjs";
+import { findService, isTime, nowIn, dateProblem, staffFor } from "../booking/calendar.mjs";
 import { availability, createBooking, listBookings } from "../booking/store.mjs";
 import { json, cleanCustomer, publicTimes } from "../booking/http.mjs";
+import { t, langOf } from "../booking/i18n.mjs";
 
 const MAX_PER_PHONE_PER_DAY = 2;
 
@@ -12,40 +13,53 @@ export default async (req) => {
   let body;
   try { body = await req.json(); } catch { return json(400, { error: "Invalid request." }); }
 
-  const key = String(body?.business || "glow-studio").toLowerCase();
+  const lang = langOf(body?.lang);
+  const key = String(body?.business || "carefirst-clinic").toLowerCase();
   const business = findBusiness(key);
-  if (!business?.booking) return json(404, { error: "Online booking is not available here." });
+  if (!business?.booking) return json(404, { error: t(lang, "notAvailable") });
 
   const service = findService(business, body.service);
-  if (!service) return json(400, { error: "Please choose a service." });
+  if (!service) return json(400, { error: t(lang, "chooseService") });
   const { date, time } = body;
   const now = nowIn(business.timezone);
-  const problem = dateProblem(business, date, now);
+  const problem = dateProblem(business, date, now, lang);
   if (problem) return json(400, { error: problem });
-  if (!isTime(time)) return json(400, { error: "Please choose a time." });
+  if (!isTime(time)) return json(400, { error: t(lang, "chooseTime") });
 
-  const customer = cleanCustomer(body);
+  // Optional: a specific doctor, when the patient picked from that doctor's schedule.
+  let onlyStaff = null;
+  if (body.staff !== undefined && body.staff !== null && body.staff !== "") {
+    onlyStaff = Number(body.staff);
+    if (!staffFor(business.booking, service).some(s => s.index === onlyStaff)) {
+      return json(400, { error: t(lang, "wrongDoctor") });
+    }
+  }
+
+  const customer = cleanCustomer(body, lang);
   if (customer.error) return json(400, { error: customer.error });
 
   const sameDay = await listBookings(key, date);
   const mine = sameDay.filter(b => b.status === "confirmed" && b.phone === customer.phone);
   if (mine.length >= MAX_PER_PHONE_PER_DAY) {
-    return json(429, { error: `You already have ${mine.length} bookings on this day. Please contact us to book more.` });
+    return json(429, { error: t(lang, "tooMany", { n: mine.length }) });
   }
 
-  const free = await availability(key, business, service, date, now);
+  const free = await availability(key, business, service, date, now, onlyStaff);
   const taken = () => json(409, {
-    error: "Sorry, that time was just taken. Here are the times still free.",
-    slots: { service: service.name, date, times: publicTimes(free.filter(f => f.time !== time)) },
+    error: t(lang, "taken"),
+    slots: { service: service.name, serviceAr: service.name_ar, date, times: publicTimes(free.filter(f => f.time !== time)) },
   });
-  if (!free.some(f => f.time === time)) return taken();
+  const slot = free.find(f => f.time === time);
+  if (!slot) return taken();
 
-  const booking = await createBooking(key, business, service, date, time, customer);
+  const booking = await createBooking(key, business, service, date, time, customer, "chat", slot.staff);
   if (!booking) return taken();
 
   return json(200, {
-    booking: { ref: booking.id, service: booking.service, date, time, name: booking.name, phone: booking.phone },
-    demo: !!business.prospect,
+    booking: { ref: booking.id, service: booking.service, serviceAr: service.name_ar,
+      doctor: booking.staffName, doctorAr: business.booking.staff[booking.staff]?.name_ar, date, time,
+      name: booking.name, phone: booking.phone, price: service.price },
+    sample: !!business.sample,
   });
 };
 

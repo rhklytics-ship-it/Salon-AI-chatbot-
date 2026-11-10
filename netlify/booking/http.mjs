@@ -7,12 +7,14 @@ export function json(status, body) {
   });
 }
 
-export function cleanCustomer(input) {
+import { t } from "./i18n.mjs";
+
+export function cleanCustomer(input, lang = "en") {
   const name = String(input?.name || "").replace(/\s+/g, " ").trim();
   const phone = String(input?.phone || "").replace(/[^\d+]/g, "");
   const digits = phone.replace(/\D/g, "");
-  if (name.length < 2 || name.length > 60) return { error: "Please enter your name." };
-  if (digits.length < 7 || digits.length > 15) return { error: "Please enter a valid mobile number." };
+  if (name.length < 2 || name.length > 60) return { error: t(lang, "enterName") };
+  if (digits.length < 7 || digits.length > 15) return { error: t(lang, "enterPhone") };
   return { name, phone };
 }
 
