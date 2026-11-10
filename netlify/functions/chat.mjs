@@ -1,26 +1,26 @@
-// AI clinic receptionist. Answers questions and finds free appointment times;
-// the patient books by tapping a time (book.mjs), so the AI never books on its own.
 import { findBusiness } from "../businesses.mjs";
-import { nowIn, addDays, niceDate, findService, dateProblem, openRanges, staffFor } from "../booking/calendar.mjs";
+import { nowIn, addDays, weekday, niceDate, findService, dateProblem } from "../booking/calendar.mjs";
 import { availability, getBooking } from "../booking/store.mjs";
 import { json, publicTimes } from "../booking/http.mjs";
 import { t, langOf } from "../booking/i18n.mjs";
 
-const DEFAULT_BUSINESS = "carefirst-clinic";
+const DEFAULT_BUSINESS = "glow-studio";
+
 const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
 const MAX_MESSAGES = 20;     // conversation turns kept per request
-const MAX_CHARS = 800;       // longest message a patient can send
-const MAX_TOOL_ROUNDS = 3;   // availability look-ups per patient message
+const MAX_CHARS = 800;       // longest message a visitor can send
+const MAX_TOOL_ROUNDS = 3;   // availability look-ups per visitor message
 
 function nextDays(b) {
   const now = nowIn(b.timezone);
   return Array.from({ length: 8 }, (_, i) => {
     const d = addDays(now.date, i);
     const label = i === 0 ? " (today)" : i === 1 ? " (tomorrow)" : "";
-    return `${niceDate(d)} = ${d}${label}${openRanges(b.booking, d).length ? "" : " CLOSED"}`;
+    return `${niceDate(d)} = ${d}${label}${b.booking?.schedule[weekday(d)] ? "" : " CLOSED"}`;
   }).join("\n");
 }
 
+// Bookings this visitor made in this chat, checked against the calendar.
 async function verifiedBookings(key, input) {
   if (!Array.isArray(input)) return [];
   const out = [];
@@ -33,60 +33,63 @@ async function verifiedBookings(key, input) {
   return out;
 }
 
-function systemPrompt(b, booked, lang = "en") {
+function bookingsNote(list) {
+  if (!list.length) return "";
+  const lines = list.map(b => `- ${b.service}, ${niceDate(b.date)} at ${b.time}, for ${b.name}, ref ${b.id}: ${b.status === "cancelled" ? "CANCELLED by the salon" : "CONFIRMED"}`);
+  return `
+Bookings this customer made in this chat (checked in the booking calendar just now, so they are real):
+${lines.join("\n")}
+The customer made these by tapping a time and confirming in the booking form, not through you. Never say a booking was not made or that a confirmation was a mistake. If they say "no", "thanks" or similar after booking, close warmly and briefly.
+`;
+}
+
+function systemPrompt(b, booked = [], lang = "en") {
+  const services = b.services.map(s => `- ${s.name}${s.name_ar ? ` (Arabic: ${s.name_ar})` : ""}: ${s.price}, ${s.duration}`).join("\n");
+  const language = lang === "ar"
+    ? `Language: the customer has chosen Arabic. Reply in clear, friendly Modern Standard Arabic${b.ar?.greeting ? " (match the tone of: \"" + b.ar.greeting + "\")" : ""}. Use the Arabic service names above, write prices like "250 درهم", and write times like "11:00 صباحًا" or "2:30 مساءً". If the customer switches to English, reply in English.`
+    : `Language: reply in the language of the customer's latest message (English or Arabic). When replying in Arabic, use the Arabic service names above, prices like "250 درهم", and times like "11:00 صباحًا".`;
   const now = nowIn(b.timezone);
   const clock = `${String(Math.floor(now.minutes / 60)).padStart(2, "0")}:${String(now.minutes % 60).padStart(2, "0")}`;
-  const services = b.services.map(s => {
-    const who = staffFor(b.booking, s).map(d => `${d.name} (${d.role}${d.name_ar ? `; Arabic: ${d.name_ar}, ${d.role_ar}` : ""})`).join(", ");
-    return `- ${s.name}${s.name_ar ? ` (Arabic: ${s.name_ar})` : ""}: ${s.price}, ${s.duration}, with ${who}`;
-  }).join("\n");
-  const bookedNote = booked.length ? `
-Appointments this patient booked in this chat (checked in the calendar just now, so they are real):
-${booked.map(x => `- ${x.service} with ${x.staffName}, ${niceDate(x.date)} at ${x.time}, ref ${x.id}: ${x.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`).join("\n")}
-The patient booked these by tapping a time and confirming, not through you. Never say they were not booked. If they say "no" or "thanks", close warmly and briefly.
-` : "";
+  const booking = b.booking ? `
+Booking:
+- You can see real availability with the check_availability tool. Never guess or promise a time without it.
+- When a customer wants to book, find out the service and the day (ask if missing), then call check_availability.
+- The free times appear to the customer as buttons under your message. Reply briefly, mention at most 3 times (written like "11:00 am" or "2:30 pm"), and tell them to tap a time to book. Do not ask for their name or number: the booking form asks after they tap.
+- If they ask for a specific time, check it and say whether it is free; if not, suggest the nearest free times.
+- If the day is full or closed, use next_available from the tool to suggest other days.
+- To cancel or change a booking, ask them to contact the team: ${b.handoff}` : `
+Booking:
+- Online booking is not available. For appointments: ${b.handoff}`;
 
-  return `You are the online receptionist for ${b.name}, a ${b.type} in ${b.location}.${b.sample ? " It is a fictional sample clinic used for demonstrations." : ""}
+  return `You are the online assistant for ${b.name}, a ${b.type} in ${b.location}.
 Now: ${niceDate(now.date)}, ${clock} (${b.timezone} time).
 
-Your job: answer questions about the clinic and help patients book appointments. Be warm, calm, brief and clear. Keep replies to 1 to 4 short sentences. Plain text only: no markdown, no bullet symbols, no emojis unless the patient uses them.
-${lang === "ar"
-  ? `Language: the patient has chosen Arabic. Reply in clear, polite Modern Standard Arabic. Use the Arabic service and doctor names above, write fees like "250 درهم", and times like "10:30 صباحًا" or "2:00 مساءً". If the patient switches to English, reply in English.`
-  : `Language: reply in the language of the patient's latest message (English or Arabic). When replying in Arabic, use the Arabic service and doctor names above, fees like "250 درهم", and times like "10:30 صباحًا".`}
+Your job: answer questions about the business and help customers book. Be warm, brief and clear, like a friendly receptionist on WhatsApp. Keep replies to 1 to 4 short sentences. Use plain text only, no markdown, no bullet symbols, no emojis unless the customer uses them. ${language}
 
 Next days (use these exact dates):
 ${nextDays(b)}
 
 Opening hours:
-${b.hours.join("\n")}${b.ar?.hours ? "\nIn Arabic: " + b.ar.hours.join(" / ") : ""}
+${b.hours.join("\n")}
 
-Services, fees and doctors:
+Services and prices:
 ${services}
 
 Policies:
 ${b.policies.map(p => "- " + p).join("\n")}
-
-Booking:
-- You see real availability only with the check_availability tool. Never guess or promise a time without it.
-- To book, find out which service and which day (ask if missing), then call check_availability.
-- Free times appear to the patient as buttons under your message. Reply briefly, mention at most 3 times (like "10:30 am" or "2:00 pm"), and tell them to tap a time to book. Do not ask for their name or number: the booking form asks after they tap.
-- If they ask for a specific time, check it and say whether it is free; if not, suggest the nearest free times. If the day is full or closed, suggest days from next_available.
-- To cancel, tell them to tap "Cancel a booking" ("إلغاء حجز" in Arabic) under the chat and enter their reference and mobile number. To change a time, they cancel and book again.
-${bookedNote}
-Medical safety (most important):
-- You are not a doctor or nurse. Never diagnose, never say what a symptom means, never suggest medicines, doses or treatment, and never say whether something is serious.
-- If the patient describes anything that could be an emergency (for example chest pain, trouble breathing, severe bleeding, signs of a stroke, a seizure, a serious injury, thoughts of harming themselves, or a very unwell baby), tell them clearly and first to call 998 for an ambulance or go to the nearest emergency department now, and not to wait for an appointment.
-- If they mention symptoms, you may only help choose which listed service to book (for example skin problems: Skin consultation; teeth: Dental check-up; anything else: General consultation). Do not ask for medical details; they are not needed to book.
-
+${booking}
+${bookingsNote(booked)}
 Rules:
-- Only use the information above and tool results. Never invent services, doctors, fees, insurance details, offers or availability.
-- For anything you cannot answer from this information, say so politely and give this: ${b.handoff}`;
+- Only use the information above and tool results. Never invent services, prices, offers or availability.
+- If asked something you cannot answer from this information, or anything unrelated to the business, say so politely and give this: ${b.handoff}${b.prospect ? `
+- This is a demo made by RHKLytics to show ${b.name} what an assistant could do. Details may be out of date, and bookings made here are not sent to ${b.name}.` : ""}`;
 }
 
 function tools(b) {
+  if (!b.booking) return [];
   return [{
     name: "check_availability",
-    description: "Get the free appointment start times for one service on one date from the live clinic calendar, and the doctor. Also returns the next days with free times if that date is full or closed.",
+    description: "Get the free start times for one service on one date, from the live booking calendar. Also returns the next days with free times if that date is full or closed.",
     input_schema: {
       type: "object",
       properties: {
@@ -98,6 +101,7 @@ function tools(b) {
   }];
 }
 
+// Runs the tool; returns what the AI sees and what the chat widget shows.
 async function checkAvailability(key, b, input) {
   const service = findService(b, input?.service);
   if (!service) return { forAI: { error: "Unknown service. Use one of the listed services." } };
@@ -105,22 +109,20 @@ async function checkAvailability(key, b, input) {
   const date = String(input?.date || "");
   const problem = dateProblem(b, date, now);
   const free = problem ? [] : publicTimes(await availability(key, b, service, date, now));
-  const people = staffFor(b.booking, service);
-  const doctors = people.map(d => d.name).join(", ");
-  const doctorsAr = people.map(d => d.name_ar || d.name).join("، ");
-  const result = { service: service.name, doctor: doctors, date, day: problem ? null : niceDate(date), problem, free_times: free };
+  const result = { service: service.name, date, day: problem ? null : niceDate(date), problem, free_times: free };
+
   if (!free.length) {
+    // Look ahead up to 7 days for the next days with space.
     const next = [];
-    const base = /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= now.date ? date : now.date;
     for (let i = 1; i <= 7 && next.length < 3; i++) {
-      const d = addDays(base, i);
+      const d = addDays(/^\d{4}-\d{2}-\d{2}$/.test(date) && date >= now.date ? date : now.date, i);
       if (dateProblem(b, d, now)) continue;
       const t = publicTimes(await availability(key, b, service, d, now));
       if (t.length) next.push({ date: d, day: niceDate(d), first_times: t.slice(0, 3) });
     }
     result.next_available = next;
   }
-  return { forAI: result, slots: free.length ? { service: service.name, serviceAr: service.name_ar, doctor: doctors, doctorAr: doctorsAr, date, times: free } : null };
+  return { forAI: result, slots: free.length ? { service: service.name, serviceAr: service.name_ar || null, date, times: free } : null };
 }
 
 function cleanMessages(input) {
@@ -131,10 +133,11 @@ function cleanMessages(input) {
     const content = m.content.trim().slice(0, MAX_CHARS);
     if (!content) continue;
     const last = msgs[msgs.length - 1];
-    if (last && last.role === m.role) last.content += "\n" + content;
+    if (last && last.role === m.role) last.content += "\n" + content;   // keep turns alternating
     else msgs.push({ role: m.role, content });
   }
   const recent = msgs.slice(-MAX_MESSAGES);
+  // The conversation must start with the visitor and end with the visitor.
   while (recent.length && recent[0].role !== "user") recent.shift();
   if (!recent.length || recent[recent.length - 1].role !== "user") return null;
   return recent;
@@ -145,10 +148,7 @@ function cleanMessages(input) {
 const RETRY_STATUS = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-let lastProblem = null;   // why the last call failed, shown when it is a setup problem
-
 async function callClaude(apiKey, body) {
-  lastProblem = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     let res;
     try {
@@ -165,9 +165,6 @@ async function callClaude(apiKey, body) {
     if (res.ok) return res.json();
     const detail = await res.text().catch(() => "");
     console.error(`AI API error ${res.status} (attempt ${attempt})`, detail.slice(0, 500));
-    let info = {};
-    try { info = JSON.parse(detail).error || {}; } catch {}
-    lastProblem = { status: res.status, type: info.type || "", message: String(info.message || "").slice(0, 160) };
     if (!RETRY_STATUS.has(res.status) || attempt === 3) return null;
     const wait = Math.min(Number(res.headers.get("retry-after")) * 1000 || 700 * attempt, 2500);
     await sleep(wait);
@@ -177,15 +174,18 @@ async function callClaude(apiKey, body) {
 
 export default async (req) => {
   if (req.method !== "POST") return json(405, { error: "Use POST." });
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return json(500, { error: "The assistant is not set up yet (missing API key)." });
 
   let body;
   try { body = await req.json(); } catch { return json(400, { error: "Invalid request." }); }
-  const lang = langOf(body?.lang);
+
   const key = String(body?.business || DEFAULT_BUSINESS).toLowerCase();
   const business = findBusiness(key);
-  if (!business) return json(404, { error: "Unknown clinic." });
+  const lang = langOf(body?.lang);
+  if (!business) return json(404, { error: "Unknown business." });
+
   const messages = cleanMessages(body?.messages);
   if (!messages) return json(400, { error: "Invalid conversation." });
 
@@ -193,25 +193,20 @@ export default async (req) => {
     const system = systemPrompt(business, await verifiedBookings(key, body?.bookings), lang);
     const toolList = tools(business);
     let slots = null;
+
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const data = await callClaude(apiKey, {
         model: MODEL, max_tokens: 500, system, messages,
-        ...(round < MAX_TOOL_ROUNDS ? { tools: toolList } : {}),
+        ...(toolList.length && round < MAX_TOOL_ROUNDS ? { tools: toolList } : {}),
       });
-      if (!data) {
-        // Setup problems (key, credit, model, request) are shown so the owner can fix them.
-        // Anthropic's error text never contains the key itself.
-        const p = lastProblem;
-        if (p && [400, 401, 403, 404].includes(p.status)) {
-          return json(502, { error: `The assistant isn't set up correctly (error ${p.status}${p.type ? ": " + p.type : ""}${p.message ? ", " + p.message : ""}).` });
-        }
-        return json(502, { error: t(lang, "busy") });
-      }
+      if (!data) return json(502, { error: t(lang, "busy") });
+
       const uses = (data.content || []).filter(c => c.type === "tool_use");
       if (data.stop_reason !== "tool_use" || !uses.length) {
         const reply = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("\n").trim();
-        return json(200, { reply: reply || (lang === "ar" ? "عذرًا، هل يمكنك إعادة ذلك؟" : "Sorry, could you say that again?"), slots });
+        return json(200, { reply: reply || "Sorry, could you say that again?", slots });
       }
+
       messages.push({ role: "assistant", content: data.content });
       const results = [];
       for (const use of uses) {

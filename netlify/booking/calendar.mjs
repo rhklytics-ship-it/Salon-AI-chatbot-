@@ -1,10 +1,5 @@
 // Calendar maths: which start times are free for a service on a date.
 // Pure functions, no storage, so they are easy to test.
-//
-// booking.schedule per weekday: null (closed), ["09:00", "17:00"], or a list of
-// ranges for breaks, e.g. [["09:00", "13:00"], ["14:00", "17:00"]].
-// booking.staff: a number (that many interchangeable people), or a list of named
-// people with the services each one does, e.g. doctors.
 
 import { t, langOf } from "./i18n.mjs";
 
@@ -53,37 +48,20 @@ export function findService(business, name) {
   return business.services.find(s => s.name.toLowerCase() === want) || null;
 }
 
-// Opening ranges for a date, in minutes: [[open, close], ...]
-export function openRanges(cfg, date) {
-  const day = cfg.schedule[weekday(date)];
-  if (!day) return [];
-  const list = Array.isArray(day[0]) ? day : [day];
-  return list.map(([o, c]) => [toMin(o), toMin(c)]);
-}
-
-// Everyone who can be booked: [{ index, name, services }]
-export function staffList(cfg) {
-  if (Array.isArray(cfg.staff)) return cfg.staff.map((s, index) => ({ index, name: s.name, role: s.role, name_ar: s.name_ar, role_ar: s.role_ar, services: s.services || null }));
-  return Array.from({ length: cfg.staff }, (_, index) => ({ index, name: `${cfg.staffLabel || "Staff"} ${index + 1}`, services: null }));
-}
-export function staffFor(cfg, service) {
-  return staffList(cfg).filter(s => !s.services || s.services.includes(service.name));
-}
-
-// The slot-sized blocks a booking occupies.
+// The 15-minute (slotMinutes) blocks a booking occupies.
 export function units(startMin, minutes, step) {
   const out = [];
   for (let t = startMin; t < startMin + minutes; t += step) out.push(fromMin(t));
   return out;
 }
 
-// Is this date one customers may book, and if not, why?
+// Is this date one customers may book, and if not, why? (lang: "en" or "ar")
 export function dateProblem(business, date, now, lang = "en") {
   const cfg = business.booking;
   if (!isDate(date)) return t(lang, "badDate");
   if (date < now.date) return t(lang, "past");
   if (date > addDays(now.date, cfg.daysAhead)) return t(lang, "tooFar", { n: cfg.daysAhead });
-  if (!openRanges(cfg, date).length) {
+  if (!cfg.schedule[weekday(date)]) {
     const day = langOf(lang) === "ar"
       ? new Date(date + "T00:00:00Z").toLocaleDateString("ar-AE", { weekday: "long", timeZone: "UTC" })
       : niceDate(date).split(" ")[0];
@@ -93,23 +71,23 @@ export function dateProblem(business, date, now, lang = "en") {
 }
 
 // taken: Set of "staffIndex|HH:MM" blocks already booked on that date.
-// onlyStaff: optional staff index to limit the search to one person.
 // Returns [{ time: "HH:MM", staff: [free staff indexes] }] in time order.
-export function freeStarts(business, service, date, taken, now, onlyStaff = null) {
+export function freeStarts(business, service, date, taken, now) {
   const cfg = business.booking;
   if (dateProblem(business, date, now)) return [];
+  const [open, close] = cfg.schedule[weekday(date)].map(toMin);
   const len = serviceMinutes(service);
   const step = cfg.slotMinutes;
-  const earliest = date === now.date ? now.minutes + cfg.leadMinutes : -Infinity;
-  const people = staffFor(cfg, service).filter(s => onlyStaff === null || s.index === onlyStaff);
+  const earliest = date === now.date ? now.minutes + cfg.leadMinutes : -1;
   const out = [];
-  for (const [open, close] of openRanges(cfg, date)) {
-    for (let start = open; start + len <= close; start += step) {
-      if (start < earliest) continue;
-      const blocks = units(start, len, step);
-      const free = people.filter(p => blocks.every(t => !taken.has(`${p.index}|${t}`))).map(p => p.index);
-      if (free.length) out.push({ time: fromMin(start), staff: free });
+  for (let start = open; start + len <= close; start += step) {
+    if (start < earliest) continue;
+    const blocks = units(start, len, step);
+    const free = [];
+    for (let s = 0; s < cfg.staff; s++) {
+      if (blocks.every(t => !taken.has(`${s}|${t}`))) free.push(s);
     }
+    if (free.length) out.push({ time: fromMin(start), staff: free });
   }
   return out;
 }
