@@ -1,379 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CareFirst Clinic – Booking Assistant</title>
-<meta name="description" content="Book a doctor's appointment online, day or night. Sample clinic demo by RHKLytics.">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glow Studio | AI assistant demo by RHKLytics</title>
+<meta name="description" content="A demo salon website showing an AI booking assistant built by RHKLytics.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
---bg:#f2f4f3;--card:#fff;--ink:#0f2a3d;--mute:#5a6b78;--line:#dbe3e1;--teal:#0f7c78;--bot:#fff;--me:#0f7c78;--gold:#f4b13e;--free:#e3f3f1;--busy:#eceeee;--busyink:#8b979e;--sel:#0f2a3d;--err:#9b1c1c;--errbg:#fdecec;--ok:#e3f3f1}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1c29;--card:#12293a;--ink:#eaf1f4;--mute:#9db0bb;--line:#24425a;--bot:#1b3649;--free:#10454a;--busy:#16303f;--busyink:#7d93a1;--sel:#f4b13e;--err:#ffb4b4;--errbg:#3a1f25;--ok:#10454a}}
-:root[data-theme="dark"]{--bg:#0b1c29;--card:#12293a;--ink:#eaf1f4;--mute:#9db0bb;--line:#24425a;--bot:#1b3649;--free:#10454a;--busy:#16303f;--busyink:#7d93a1;--sel:#f4b13e;--err:#ffb4b4;--errbg:#3a1f25;--ok:#10454a}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
-*,*::before,*::after{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-button,input,select{font:inherit}
-:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-.wrap{max-width:1040px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}
-@media(max-width:820px){.wrap{grid-template-columns:1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
-.hd{background:var(--teal);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;gap:8px;align-items:center}
-.hd b{font-size:17px}.hd small{display:block;opacity:.85}
-.tag{background:var(--gold);color:#0f2a3d;font-weight:700;font-size:12px;border-radius:99px;padding:4px 10px;white-space:nowrap}
-#msgs{height:480px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
-.m{max-width:85%;padding:9px 13px;border-radius:16px;white-space:pre-line;word-wrap:break-word}
-.b{background:var(--bot);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
-.u{background:var(--me);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
-.e{align-self:center;background:var(--errbg);color:var(--err);font-size:14px}
-.typing{align-self:flex-start;display:flex;gap:4px;padding:12px 14px;background:var(--bot);border:1px solid var(--line);border-radius:16px}
-.typing i{width:7px;height:7px;border-radius:50%;background:var(--mute);animation:bl 1s infinite}
-.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
-@keyframes bl{0%,80%,100%{opacity:.25}40%{opacity:1}}
-@media (prefers-reduced-motion:reduce){.typing i{animation:none}}
-.box{align-self:stretch;background:var(--bot);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
-.box h3{margin:0;font-size:15px}.box p{margin:0;color:var(--mute);font-size:14px}
-.times{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
-.t{border:1px solid var(--teal);color:var(--teal);background:transparent;border-radius:10px;padding:8px 4px;font-size:14px;cursor:pointer;min-height:40px}
-.t[aria-pressed="true"]{background:var(--teal);color:#fff}
-.more{border:1px dashed var(--teal);color:var(--teal);background:transparent;border-radius:10px;padding:8px;cursor:pointer;font-size:14px}
-.frm{display:flex;flex-direction:column;gap:8px}
-.frm[hidden]{display:none}
-.frm label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mute)}
-.frm input,.frm select{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:9px 11px}
-.go{background:var(--teal);color:#fff;border:0;border-radius:99px;padding:11px;font-weight:600;cursor:pointer}
-.go:disabled{opacity:.55;cursor:default}
-.ferr{color:var(--err);font-size:13px;min-height:1em}
-.conf{align-self:flex-start;background:var(--ok);border-radius:14px;padding:12px 14px;max-width:90%}
-.conf b{display:block;margin-bottom:6px}
-.conf dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0;font-size:14px}
-.conf dt{color:var(--mute)}.conf dd{margin:0}
-#chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px}
-.chip,.tab{border:1px solid var(--teal);color:var(--teal);background:transparent;border-radius:99px;padding:6px 12px;font-size:14px;cursor:pointer}
-.chip:hover{background:var(--teal);color:#fff}
-.row{display:flex;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--line)}
-.row input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:10px 12px}
-.send{background:var(--teal);color:#fff;border:0;border-radius:12px;padding:0 16px;font-weight:600;cursor:pointer}
-.send:disabled{opacity:.55}
-.side{padding:14px}
-.side h2{margin:0 0 4px;font-size:17px}.side>p{margin:0 0 10px;color:var(--mute);font-size:14px}
-.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-.tab[aria-pressed="true"]{background:var(--sel);border-color:var(--sel);color:var(--card)}
-.doc{font-size:13px;color:var(--mute);margin:-4px 0 10px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
-.s{border:0;border-radius:10px;padding:8px 4px;font-size:14px;background:var(--free);color:var(--ink);cursor:pointer;min-height:40px}
-.s:hover{outline:2px solid var(--teal)}
-.s[disabled]{background:var(--busy);color:var(--busyink);cursor:not-allowed;outline:none}
-.s.taken[disabled]{text-decoration:line-through}
-.gap{grid-column:1/-1;font-size:12px;color:var(--mute);text-align:center;padding:2px 0}
-.leg{margin-top:10px;font-size:13px;color:var(--mute)}
-.status{font-size:13px;color:var(--mute);min-height:1.2em;margin-top:6px}
-.foot{grid-column:1/-1;text-align:center;font-size:13px;color:var(--mute)}
-.foot strong{color:var(--ink)}
-.lang{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.7);border-radius:99px;padding:3px 11px;font-size:13px;cursor:pointer}
-.hdr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.m,.box,.conf,.tab,.chip{unicode-bidi:plaintext}
-html[dir=rtl] body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,"Noto Sans Arabic",Arial,sans-serif}
-html[dir=rtl] .b{border-bottom-left-radius:16px;border-bottom-right-radius:4px}
-html[dir=rtl] .u{border-bottom-right-radius:16px;border-bottom-left-radius:4px}
+  :root { --plum: #4A2040; --rose: #B8466B; --blush: #F7E9EC; --cream: #FFFAF8; --ink: #2B1A26; --muted: #6E5A66; --line: #EBD9DE; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); font: 400 1.05rem/1.6 "Karla", system-ui, sans-serif; }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; line-height: 1.1; margin: 0; }
+  a { color: inherit; }
+  .wrap { width: min(1080px, 100% - 32px); margin-inline: auto; }
+
+  .demo-bar { background: var(--plum); color: #fff; font-size: .95rem; }
+  .demo-bar .wrap { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; align-items: center; padding: 10px 0; }
+  .demo-bar a { color: #FFD7E2; font-weight: 700; }
+
+  header .wrap { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
+  .logo { font-family: "Fraunces", serif; font-size: 1.6rem; font-weight: 600; color: var(--plum); text-decoration: none; }
+  nav { display: flex; gap: 24px; font-weight: 500; }
+  nav a { text-decoration: none; }
+
+  .hero { padding: 56px 0 72px; }
+  .hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+  .hero h1 { font-size: clamp(2.4rem, 5vw, 3.8rem); color: var(--plum); max-width: 14ch; }
+  .hero p { color: var(--muted); font-size: 1.15rem; max-width: 42ch; margin: 20px 0 28px; }
+  .btn { display: inline-block; background: var(--rose); color: #fff; text-decoration: none; padding: 13px 24px; border-radius: 999px; font-weight: 700; border: 0; cursor: pointer; font: inherit; font-weight: 700; }
+  .swatch { aspect-ratio: 4 / 5; border-radius: 200px 200px 24px 24px; background:
+      radial-gradient(circle at 30% 30%, #F9D3DD 0 18%, transparent 19%),
+      radial-gradient(circle at 70% 60%, #E9A5B9 0 22%, transparent 23%),
+      linear-gradient(160deg, #F4C9D4, #C96A8A); }
+
+  section { padding: 64px 0; }
+  .menu { background: #fff; border-block: 1px solid var(--line); }
+  .menu h2, .info h2 { font-size: clamp(1.9rem, 3.4vw, 2.6rem); color: var(--plum); margin-bottom: 28px; }
+  .price-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; margin: 0; padding: 0; list-style: none; }
+  .price-list li { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px dashed var(--line); }
+  .price-list span { color: var(--muted); font-size: .92rem; display: block; }
+  .price-list b { white-space: nowrap; color: var(--rose); }
+
+  .info .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+  .info p { margin: 0 0 8px; color: var(--muted); }
+  footer { padding: 28px 0; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); }
+
+  @media (max-width: 800px) {
+    nav { display: none; }
+    .hero .wrap, .info .wrap { grid-template-columns: 1fr; }
+    .swatch { max-width: 320px; }
+    .price-list { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-<main class="wrap">
- <section class="card" id="chatCard">
-  <div class="hd"><div><b>CareFirst Clinic</b><small data-t="online"></small></div>
-   <div class="hdr"><span class="tag" data-t="tag"></span><button type="button" class="lang" id="langBtn"></button></div></div>
-  <div id="msgs" aria-live="polite"></div>
-  <div id="chips"></div>
-  <form class="row" id="chat">
-   <input id="in" autocomplete="off" maxlength="800">
-   <button class="send" id="go" type="submit" data-t="send"></button>
-  </form>
- </section>
- <section class="card side" id="sideCard">
-  <h2 data-t="schedTitle"></h2>
-  <p data-t="schedSub"></p>
-  <div class="tabs" id="dtabs" role="group"></div>
-  <div class="doc" id="docinfo"></div>
-  <div class="tabs" id="ptabs" role="group"></div>
-  <div class="grid" id="grid"></div>
-  <div class="leg" data-t="legend"></div>
-  <div class="status" id="sstatus" role="status"></div>
- </section>
- <p class="foot"><strong data-t="emergency"></strong> <span data-t="noAdvice"></span><br><span data-t="privacy"></span></p>
+
+<div class="demo-bar">
+  <div class="wrap">
+    <span>This is a demo salon website. Try the AI assistant in the bottom corner.</span>
+    <span>Built by <a href="https://rhklytics.netlify.app" target="_blank" rel="noopener">RHKLytics</a></span>
+  </div>
+</div>
+
+<header>
+  <div class="wrap">
+    <a class="logo" href="#">Glow Studio</a>
+    <nav aria-label="Main"><a href="#menu">Services</a><a href="#visit">Visit us</a></nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Facials, hair and nails in Al Barsha</h1>
+        <p>A calm, ladies-only salon near Mall of the Emirates. Book online any time, day or night.</p>
+        <button class="btn" type="button" id="book-btn">Book an appointment</button>
+      </div>
+      <div class="swatch" role="img" aria-label="Decorative pink pattern"></div>
+    </div>
+  </section>
+
+  <section class="menu" id="menu">
+    <div class="wrap">
+      <h2>Services</h2>
+      <ul class="price-list">
+        <li><div>Classic facial<span>60 min</span></div><b>AED 250</b></li>
+        <li><div>Hydrating facial<span>75 min</span></div><b>AED 320</b></li>
+        <li><div>Haircut and blow-dry<span>60 min</span></div><b>AED 180</b></li>
+        <li><div>Blow-dry only<span>45 min</span></div><b>AED 120</b></li>
+        <li><div>Hair colour (full)<span>120 min</span></div><b>from AED 450</b></li>
+        <li><div>Manicure<span>45 min</span></div><b>AED 90</b></li>
+        <li><div>Gel manicure<span>60 min</span></div><b>AED 140</b></li>
+        <li><div>Pedicure<span>60 min</span></div><b>AED 120</b></li>
+        <li><div>Eyebrow threading<span>15 min</span></div><b>AED 40</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="info" id="visit">
+    <div class="wrap">
+      <div>
+        <h2>Opening hours</h2>
+        <p>Saturday to Thursday: 10:00 to 21:00</p>
+        <p>Friday: 14:00 to 21:00</p>
+      </div>
+      <div>
+        <h2>Find us</h2>
+        <p>Al Barsha, Dubai, near Mall of the Emirates</p>
+        <p>Free parking in the building basement</p>
+      </div>
+    </div>
+  </section>
 </main>
+
+<footer>
+  <div class="wrap">Glow Studio is a fictional business created to demonstrate an AI booking assistant.</div>
+</footer>
+
+
+<script src="/widget.js"
+        data-business="glow-studio"
+        data-name="Glow Studio"
+        data-color="#B8466B"
+        data-greeting="Hi, welcome to Glow Studio! I can help with prices, opening hours or booking an appointment."
+        data-chips="See prices|Book a facial|Opening hours"
+        data-greeting-ar="أهلًا بكِ في Glow Studio! يسعدني مساعدتكِ في الأسعار أو مواعيد العمل أو حجز موعد."
+        data-chips-ar="الأسعار|حجز تنظيف بشرة|مواعيد العمل"
+        data-lang="auto"
+        data-whatsapp="971500000000"
+        data-open="true"></script>
 <script>
-(function () {
-  const BIZ = "carefirst-clinic";
-  const $ = (s) => document.querySelector(s);
-  const pad = (n) => String(n).padStart(2, "0");
-
-  // ---------- Words in both languages ----------
-  const T = {
-    en: {
-      title: "CareFirst Clinic – Booking Assistant", online: "Online, replies instantly", tag: "Live demo · sample clinic", toggle: "عربي",
-      placeholder: "Type your message…", msgLabel: "Your message", send: "Send", chatLabel: "Chat with the clinic assistant",
-      schedTitle: "Live clinic schedule", schedSub: "Free times update every few seconds. Tap one to book it.", schedLabel: "Live clinic schedule",
-      doctorGroup: "Doctor", dayGroup: "Day", legend: "Booked times can’t be chosen, so the same time can never be booked twice.",
-      emergency: "In an emergency, call 998", noAdvice: "or go to the nearest emergency department. This assistant can’t give medical advice.",
-      privacy: "CareFirst is a sample clinic for demonstration. Your name and mobile are used only for your appointment. Demo by RHKLytics.",
-      greeting: "Hello! I’m the CareFirst Clinic assistant. I can check doctors’ availability, book you in, and help you cancel, day or night.",
-      chips: ["Book an appointment", "Fees", "Clinic hours", "Cancel a booking"], chipsAfter: ["Book an appointment", "Clinic hours"], cancelChip: "Cancel a booking",
-      error: "Something went wrong. Please try again.", offline: "Can’t reach the assistant. Check your connection and try again.",
-      noBooking: "Can’t reach the booking system. Check your connection and try again.",
-      freeTimes: "Free times", showAll: (n) => "Show all " + n + " times", book: (t, d) => "Book " + t + ", " + d,
-      service: "Service", patient: "Patient’s full name", mobile: "Mobile number", confirm: "Confirm appointment", booking: "Booking…",
-      confirmed: "Appointment confirmed", kService: "Service", kDoctor: "Doctor", kDate: "Date", kTime: "Time", kFee: "Fee", kPatient: "Patient", kRef: "Reference",
-      fee: (p) => p + ", paid at the clinic",
-      bookedSay: (b) => "You’re booked with " + b.doctor + " on " + b.day + " at " + b.time + ". Your reference is " + b.ref + ". Keep it to cancel if you need to. Anything else I can help with?",
-      cancelTitle: "Cancel an appointment", cancelSub: "Enter your reference and the mobile number you booked with.", ref: "Reference", refEg: "e.g. K7M2QX",
-      cancelGo: "Cancel appointment", cancelFail: "Could not cancel. Please try again.",
-      already: (r) => "Appointment " + r + " was already cancelled.",
-      cancelled: (b) => "Done. Your " + b.service + " with " + b.doctor + " on " + b.day + " at " + b.time + " (ref " + b.ref + ") is cancelled, and the time is free for other patients. Would you like to book a new time?",
-      cancelledUser: (r) => "I cancelled appointment " + r + ".",
-      updated: (t) => "Updated " + t, schedFail: "Can’t load the schedule right now. Retrying…", free: (n) => n + " free",
-      lunch: "Lunch break", takenL: ", booked", naL: ", not available",
-      want: (s, d, day, t) => "I’d like " + s + " with " + d + " on " + day + " at " + t + ".",
-    },
-    ar: {
-      title: "عيادة CareFirst – مساعد الحجز", online: "متصل، يرد فورًا", tag: "نسخة تجريبية · عيادة افتراضية", toggle: "English",
-      placeholder: "اكتب رسالتك…", msgLabel: "رسالتك", send: "إرسال", chatLabel: "تحدث مع مساعد العيادة",
-      schedTitle: "جدول العيادة المباشر", schedSub: "تتحدث الأوقات المتاحة كل بضع ثوانٍ. اضغط على وقت لحجزه.", schedLabel: "جدول العيادة المباشر",
-      doctorGroup: "الطبيب", dayGroup: "اليوم", legend: "لا يمكن اختيار الأوقات المحجوزة، لذلك لا يُحجز الوقت نفسه مرتين أبدًا.",
-      emergency: "في حالات الطوارئ اتصل بـ 998", noAdvice: "أو توجّه إلى أقرب قسم طوارئ. هذا المساعد لا يقدّم استشارات طبية.",
-      privacy: "CareFirst عيادة افتراضية للعرض فقط. يُستخدم اسمك ورقم جوالك لموعدك فقط. تطوير RHKLytics.",
-      greeting: "مرحبًا! أنا مساعد عيادة CareFirst. أستطيع التحقق من مواعيد الأطباء المتاحة وحجز موعدك ومساعدتك في الإلغاء، في أي وقت.",
-      chips: ["حجز موعد", "الرسوم", "مواعيد العيادة", "إلغاء حجز"], chipsAfter: ["حجز موعد", "مواعيد العيادة"], cancelChip: "إلغاء حجز",
-      error: "حدث خطأ ما. يرجى المحاولة مرة أخرى.", offline: "تعذّر الوصول إلى المساعد. تحقّق من اتصالك وحاول مجددًا.",
-      noBooking: "تعذّر الوصول إلى نظام الحجز. تحقّق من اتصالك وحاول مجددًا.",
-      freeTimes: "الأوقات المتاحة", showAll: (n) => "عرض كل الأوقات (" + n + ")", book: (t, d) => "حجز " + t + "، " + d,
-      service: "الخدمة", patient: "اسم المريض الكامل", mobile: "رقم الجوال", confirm: "تأكيد الموعد", booking: "جارٍ الحجز…",
-      confirmed: "تم تأكيد الموعد", kService: "الخدمة", kDoctor: "الطبيب", kDate: "التاريخ", kTime: "الوقت", kFee: "الرسوم", kPatient: "المريض", kRef: "رقم الحجز",
-      fee: (p) => arPrice(p) + "، تُدفع في العيادة",
-      bookedSay: (b) => "تم حجز موعدك مع " + b.doctor + " يوم " + b.day + " الساعة " + b.time + ". رقم الحجز: " + b.ref + ". احتفظ به إذا احتجت إلى الإلغاء. هل يمكنني مساعدتك في شيء آخر؟",
-      cancelTitle: "إلغاء موعد", cancelSub: "أدخل رقم الحجز ورقم الجوال الذي حجزت به.", ref: "رقم الحجز", refEg: "مثال: K7M2QX",
-      cancelGo: "إلغاء الموعد", cancelFail: "تعذّر الإلغاء. يرجى المحاولة مرة أخرى.",
-      already: (r) => "الموعد " + r + " ملغى مسبقًا.",
-      cancelled: (b) => "تم. أُلغي موعد " + b.service + " مع " + b.doctor + " يوم " + b.day + " الساعة " + b.time + " (رقم الحجز " + b.ref + ")، وأصبح الوقت متاحًا لمرضى آخرين. هل تودّ حجز موعد جديد؟",
-      cancelledUser: (r) => "ألغيت الموعد " + r + ".",
-      updated: (t) => "آخر تحديث " + t, schedFail: "تعذّر تحميل الجدول الآن. جارٍ إعادة المحاولة…", free: (n) => n + " متاح",
-      lunch: "استراحة الغداء", takenL: "، محجوز", naL: "، غير متاح",
-      want: (s, d, day, t) => "أرغب في حجز " + s + " مع " + d + " يوم " + day + " الساعة " + t + ".",
-    },
-  };
-  const arPrice = (p) => String(p || "").replace(/^AED\s*([\d,]+)/i, "$1 درهم");
-  let lang = (() => { const q = new URLSearchParams(location.search).get("lang"); if (q) return q === "ar" ? "ar" : "en";
-    try { const s = localStorage.getItem("cf-lang"); if (s) return s; } catch {} return "en"; })();
-  const L = () => T[lang], A = () => lang === "ar";
-  const LOC = () => A() ? "ar-AE-u-nu-latn" : "en-GB";
-  const niceDate = (d) => new Date(d + "T00:00:00Z").toLocaleDateString(LOC(), { weekday: A() ? "long" : "short", day: "numeric", month: A() ? "long" : "short", timeZone: "UTC" });
-  const niceTime = (t) => { const [h, m] = t.split(":").map(Number); return (h % 12 || 12) + ":" + pad(m) + " " + (A() ? (h < 12 ? "ص" : "م") : (h < 12 ? "am" : "pm")); };
-  let svcAr = {};                                   // English service name -> Arabic
-  const svc = (n, ar) => A() ? (ar || svcAr[n] || n) : n;
-  const docName = (d) => A() && d.name_ar ? d.name_ar : d.name;
-
-  const msgs = $("#msgs");
-  const history = [];
-  const booked = [];          // { ref, date } of appointments made here, verified by the server
-  let busy = false;
-  let sched = { doctors: [], days: [], services: [] }, sdoc = 0, sday = null;
-
-  function applyLang() {
-    const t = L();
-    document.documentElement.lang = lang; document.documentElement.dir = A() ? "rtl" : "ltr";
-    document.title = t.title;
-    document.querySelectorAll("[data-t]").forEach(e => { e.textContent = t[e.dataset.t]; });
-    $("#in").placeholder = t.placeholder; $("#in").setAttribute("aria-label", t.msgLabel);
-    $("#chatCard").setAttribute("aria-label", t.chatLabel); $("#sideCard").setAttribute("aria-label", t.schedLabel);
-    $("#dtabs").setAttribute("aria-label", t.doctorGroup); $("#ptabs").setAttribute("aria-label", t.dayGroup);
-    $("#langBtn").textContent = t.toggle; $("#langBtn").setAttribute("lang", A() ? "en" : "ar");
-    defaultChips(); renderSchedule();
-  }
-  let greetEl = null;
-  function setLang(l) { if (l === lang) return; lang = l; try { localStorage.setItem("cf-lang", l); } catch {} applyLang();
-    if (greetEl && !history.length) greetEl.textContent = L().greeting; }
-
-  function scroll() { msgs.scrollTop = msgs.scrollHeight; }
-  function add(cls, text) { const e = document.createElement("div"); e.className = "m " + cls; e.textContent = text; msgs.appendChild(e); scroll(); return e; }
-  function chips(list) {
-    const c = $("#chips"); c.innerHTML = "";
-    list.forEach(x => { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = x;
-      b.onclick = () => (x === T.en.cancelChip || x === T.ar.cancelChip) ? cancelForm() : send(x); c.appendChild(b); });
-  }
-  let chipSet = "chips";
-  const defaultChips = () => chips(L()[chipSet]);
-
-  // ---------- Chat with the AI ----------
-  async function send(text) {
-    text = text.trim();
-    if (!text || busy) return;
-    if (/[؀-ۿ]/.test(text) && !A()) setLang("ar");   // typed in Arabic: switch the page
-    busy = true; $("#go").disabled = true;
-    add("u", text); history.push({ role: "user", content: text });
-    const typing = document.createElement("div"); typing.className = "typing"; typing.innerHTML = "<i></i><i></i><i></i>";
-    msgs.appendChild(typing); scroll();
-    try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ business: BIZ, lang, messages: history, bookings: booked }) });
-      const data = await res.json().catch(() => ({}));
-      typing.remove();
-      if (!res.ok || !data.reply) { history.pop(); add("e", data.error || L().error); }
-      else {
-        add("b", data.reply); history.push({ role: "assistant", content: data.reply });
-        if (data.slots && data.slots.times.length) picker(data.slots);
-      }
-    } catch { typing.remove(); history.pop(); add("e", L().offline); }
-    busy = false; $("#go").disabled = false; $("#in").focus();
-  }
-
-  // ---------- Free times + booking form ----------
-  // opts: { service, serviceAr?, services?, doctor, doctorAr?, date, times, time?, staff? }
-  function picker(opts) {
-    const t = L();
-    const box = document.createElement("div"); box.className = "box";
-    const h = document.createElement("h3"); h.textContent = svc(opts.service, opts.serviceAr) + " · " + niceDate(opts.date);
-    const p = document.createElement("p"); p.textContent = (A() && opts.doctorAr) || opts.doctor || "";
-    box.append(h, p);
-    let picked = opts.time || null;
-    const buttons = [];
-    if (!opts.time) {
-      const grid = document.createElement("div"); grid.className = "times"; grid.setAttribute("role", "group"); grid.setAttribute("aria-label", t.freeTimes);
-      const SHOW = 8;
-      const addT = (tm) => { const b = document.createElement("button"); b.type = "button"; b.className = "t"; b.textContent = niceTime(tm); b.setAttribute("aria-pressed", "false");
-        b.onclick = () => { picked = tm; buttons.forEach(x => x.setAttribute("aria-pressed", String(x === b))); form.hidden = false; title.textContent = t.book(niceTime(tm), niceDate(opts.date)); nameIn.focus(); };
-        buttons.push(b); grid.appendChild(b); };
-      opts.times.slice(0, SHOW).forEach(addT);
-      box.appendChild(grid);
-      if (opts.times.length > SHOW) { const m = document.createElement("button"); m.type = "button"; m.className = "more"; m.textContent = t.showAll(opts.times.length);
-        m.onclick = () => { opts.times.slice(SHOW).forEach(addT); m.remove(); }; box.appendChild(m); }
-    }
-    const form = document.createElement("form"); form.className = "frm"; form.hidden = !opts.time;
-    form.innerHTML = '<b></b>' + (opts.services && opts.services.length > 1 ? '<label><span></span><select name="service"></select></label>' : "") +
-      '<label><span></span><input name="name" autocomplete="name" maxlength="60" required></label>' +
-      '<label><span></span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="05X XXX XXXX" dir="ltr" required></label>' +
-      '<div class="ferr" role="alert"></div><button class="go" type="submit"></button>';
-    const spans = form.querySelectorAll("label > span");
-    const labels = opts.services && opts.services.length > 1 ? [t.service, t.patient, t.mobile] : [t.patient, t.mobile];
-    spans.forEach((sp, i) => sp.textContent = labels[i]);
-    const title = form.querySelector("b"), nameIn = form.querySelector('[name="name"]'), phoneIn = form.querySelector('[name="phone"]'),
-      err = form.querySelector(".ferr"), go = form.querySelector(".go"), sel = form.querySelector("select");
-    go.textContent = t.confirm;
-    if (sel) opts.services.forEach(s => { const o = document.createElement("option"); o.value = s; o.textContent = svc(s); sel.appendChild(o); });
-    if (opts.time) title.textContent = t.book(niceTime(opts.time), niceDate(opts.date));
-    form.onsubmit = async (e) => {
-      e.preventDefault(); if (!picked) return;
-      err.textContent = ""; go.disabled = true; go.textContent = t.booking;
-      const service = sel ? sel.value : opts.service;
-      try {
-        const res = await fetch("/api/book", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ business: BIZ, lang, service, date: opts.date, time: picked, staff: opts.staff, name: nameIn.value, phone: phoneIn.value }) });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.booking) { box.remove(); confirmed(data.booking); loadSchedule(); return; }
-        if (res.status === 409) { box.remove(); add("e", data.error); if (data.slots && data.slots.times.length) picker({ ...opts, ...data.slots, time: null, services: null }); loadSchedule(); return; }
-        err.textContent = data.error || t.error;
-      } catch { err.textContent = t.noBooking; }
-      go.disabled = false; go.textContent = t.confirm;
-    };
-    box.appendChild(form); msgs.appendChild(box); scroll();
-    if (opts.time) nameIn.focus();
-  }
-
-  function confirmed(b) {
-    const t = L();
-    booked.push({ ref: b.ref, date: b.date });
-    const doctor = (A() && b.doctorAr) || b.doctor, service = svc(b.service, b.serviceAr);
-    const c = document.createElement("div"); c.className = "conf";
-    const ttl = document.createElement("b"); ttl.textContent = t.confirmed;
-    const dl = document.createElement("dl");
-    [[t.kService, service], [t.kDoctor, doctor], [t.kDate, niceDate(b.date)], [t.kTime, niceTime(b.time)], [t.kFee, t.fee(b.price)], [t.kPatient, b.name], [t.kRef, b.ref]]
-      .forEach(([k, v]) => { const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v; dl.append(dt, dd); });
-    c.append(ttl, dl); msgs.appendChild(c);
-    const say = t.bookedSay({ doctor, day: niceDate(b.date), time: niceTime(b.time), ref: b.ref });
-    add("b", say); history.push({ role: "assistant", content: say }); chipSet = "chips"; defaultChips();
-  }
-
-  // ---------- Cancel with reference + mobile ----------
-  function cancelForm() {
-    const t = L();
-    const box = document.createElement("div"); box.className = "box";
-    box.innerHTML = '<h3></h3><p></p><form class="frm"><label><span></span><input name="ref" maxlength="10" autocomplete="off" dir="ltr" required></label>' +
-      '<label><span></span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" dir="ltr" required></label>' +
-      '<div class="ferr" role="alert"></div><button class="go" type="submit"></button></form>';
-    box.querySelector("h3").textContent = t.cancelTitle; box.querySelector("p").textContent = t.cancelSub;
-    const sp = box.querySelectorAll("label > span"); sp[0].textContent = t.ref; sp[1].textContent = t.mobile;
-    const form = box.querySelector("form"), err = box.querySelector(".ferr"), go = box.querySelector(".go");
-    form.ref.placeholder = t.refEg; go.textContent = t.cancelGo;
-    form.onsubmit = async (e) => {
-      e.preventDefault(); err.textContent = ""; go.disabled = true;
-      try {
-        const res = await fetch("/api/cancel", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ business: BIZ, lang, ref: form.ref.value, phone: form.phone.value }) });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          box.remove();
-          const b = data.booking;
-          const say = data.already ? t.already(b.ref) :
-            t.cancelled({ service: svc(b.service, b.serviceAr), doctor: (A() && b.doctorAr) || b.doctor, day: niceDate(b.date), time: niceTime(b.time), ref: b.ref });
-          add("b", say); history.push({ role: "user", content: t.cancelledUser(b.ref) }, { role: "assistant", content: say });
-          chipSet = "chipsAfter"; defaultChips(); loadSchedule(); return;
-        }
-        err.textContent = data.error || t.cancelFail;
-      } catch { err.textContent = t.noBooking; }
-      go.disabled = false;
-    };
-    msgs.appendChild(box); scroll(); form.ref.focus();
-  }
-
-  // ---------- Live schedule panel ----------
-  let lastUpdate = null;
-  async function loadSchedule() {
-    try {
-      const res = await fetch("/api/schedule?business=" + BIZ + "&staff=" + sdoc, { cache: "no-store" });
-      if (!res.ok) throw 0;
-      sched = await res.json();
-      (sched.services || []).forEach(s => { if (s.name_ar) svcAr[s.name] = s.name_ar; });
-      if (!sched.days.some(d => d.date === sday)) sday = (sched.days.find(d => d.free) || sched.days[0] || {}).date;
-      lastUpdate = new Date();
-    } catch { lastUpdate = null; $("#sstatus").textContent = L().schedFail; }
-    renderSchedule();
-  }
-  function renderSchedule() {
-    const t = L();
-    if (lastUpdate) $("#sstatus").textContent = t.updated(lastUpdate.toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" }));
-    const dt = $("#dtabs"); dt.innerHTML = "";
-    sched.doctors.forEach(d => { const b = document.createElement("button"); b.type = "button"; b.className = "tab"; b.textContent = docName(d);
-      b.setAttribute("aria-pressed", String(d.index === sdoc)); b.onclick = () => { sdoc = d.index; loadSchedule(); }; dt.appendChild(b); });
-    const doc = sched.doctors[sdoc];
-    $("#docinfo").textContent = doc ? ((A() && doc.role_ar) || doc.role) + " · " + (doc.services || []).map(x => svc(x)).join(A() ? "، " : ", ") : "";
-    const pt = $("#ptabs"); pt.innerHTML = "";
-    sched.days.forEach(d => { const b = document.createElement("button"); b.type = "button"; b.className = "tab"; b.textContent = niceDate(d.date) + " · " + t.free(d.free);
-      b.setAttribute("aria-pressed", String(d.date === sday)); b.onclick = () => { sday = d.date; renderSchedule(); }; pt.appendChild(b); });
-    const g = $("#grid"); g.innerHTML = "";
-    const day = sched.days.find(d => d.date === sday);
-    if (!day) return;
-    let prev = null;
-    day.blocks.forEach(bl => {
-      const [hh, mm] = bl.time.split(":").map(Number), m = hh * 60 + mm;
-      if (prev !== null && m - prev > 30) { const gap = document.createElement("div"); gap.className = "gap"; gap.textContent = t.lunch; g.appendChild(gap); }
-      prev = m;
-      const b = document.createElement("button"); b.type = "button"; b.className = "s " + bl.state; b.textContent = niceTime(bl.time);
-      if (bl.state !== "free") { b.disabled = true; b.setAttribute("aria-label", niceTime(bl.time) + (bl.state === "taken" ? t.takenL : t.naL)); }
-      else b.onclick = () => {
-        const s0 = doc.services[0];
-        add("u", L().want(svc(s0), docName(doc), niceDate(day.date), niceTime(bl.time)));
-        picker({ service: s0, services: doc.services, doctor: doc.name, doctorAr: doc.name_ar, date: day.date, times: [bl.time], time: bl.time, staff: doc.index });
-      };
-      g.appendChild(b);
-    });
-  }
-
-  $("#chat").addEventListener("submit", (e) => { e.preventDefault(); const v = $("#in").value; $("#in").value = ""; send(v); });
-  $("#langBtn").addEventListener("click", () => setLang(A() ? "en" : "ar"));
-  applyLang();
-  greetEl = add("b", L().greeting);
-  loadSchedule();
-  setInterval(() => { if (!document.hidden) loadSchedule(); }, 15000);
-})();
+  document.getElementById("book-btn").addEventListener("click", () => {
+    const launch = document.querySelector(".rk-launch");
+    if (!document.querySelector(".rk-panel.rk-open")) launch.click();
+  });
 </script>
 </body>
 </html>
