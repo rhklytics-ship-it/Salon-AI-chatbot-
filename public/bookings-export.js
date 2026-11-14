@@ -61,7 +61,7 @@
         date: excelDate(b.date), day: day(b.date), start: b.time, end: hhmm(toMin(b.time) + b.minutes),
         service: b.service, minutes: b.minutes, name: b.name, phone: String(b.phone),
         staff: staffLabel + " " + (b.staff + 1), ref: b.id,
-        source: b.source === "owner" ? "Owner" : "Chatbot",
+        source: b.source === "owner" ? "Owner" : b.source === "whatsapp" ? "WhatsApp" : "Chatbot",
         status: b.status === "cancelled" ? "Cancelled" : "Confirmed",
       });
       row.getCell("date").numFmt = "dd mmm yyyy";

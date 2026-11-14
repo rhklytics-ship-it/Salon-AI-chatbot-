@@ -186,7 +186,7 @@
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
       const src = document.createElement("td");
       const tag = document.createElement("span"); tag.className = "tag" + (bk.source === "owner" ? " owner" : "");
-      tag.textContent = bk.status === "cancelled" ? "Cancelled" : (bk.source === "owner" ? "Added by you" : "Chatbot");
+      tag.textContent = bk.status === "cancelled" ? "Cancelled" : (bk.source === "owner" ? "Added by you" : bk.source === "whatsapp" ? "WhatsApp" : "Chatbot");
       src.appendChild(tag); tr.appendChild(src);
       const act = document.createElement("td");
       if (bk.status !== "cancelled") {
