@@ -14,6 +14,10 @@ const MODEL = process.env.CLAUDE_MODEL || "claude-haiku-5-5";
 const MAX_MESSAGES = 20;     // conversation turns kept per request
 const MAX_CHARS = 800;       // longest message a visitor can send
 const MAX_TOOL_ROUNDS = 3;   // tool look-ups per visitor message
+// Room for each AI answer. The model may think before answering, and that thinking counts
+// here too, so this is well above the length of a reply. A cut-off answer is retried once with more.
+const MAX_TOKENS = 2000;
+const MAX_TOKENS_RETRY = 4000;
 
 function nextDays(b) {
   const now = nowIn(b.timezone);
@@ -377,10 +381,15 @@ export async function runChat({ key, lang = "en", messages: rawMessages, booking
     let nudged = false;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const data = await callClaude(apiKey, {
-        model: MODEL, max_tokens: 500, system, messages,
+      const ask = (maxTokens) => callClaude(apiKey, {
+        model: MODEL, max_tokens: maxTokens, system, messages,
         ...(toolList.length && round < MAX_TOOL_ROUNDS ? { tools: toolList } : {}),
       });
+      let data = await ask(MAX_TOKENS);
+      if (data?.stop_reason === "max_tokens") {
+        console.warn("AI answer was cut off; retrying with more room", JSON.stringify({ blocks: (data.content || []).map(c => c.type), round }));
+        data = await ask(MAX_TOKENS_RETRY);
+      }
       if (!data) return { status: 502, body: { error: t(lang, "busy") } };
 
       const uses = (data.content || []).filter(c => c.type === "tool_use");
