@@ -1,12 +1,11 @@
-// Books a slot the customer picked in the chat. No AI involved here:
-// the slot is checked against the calendar and claimed atomically.
+// Books a slot the customer picked in the chat, or moves an existing booking to it.
+// No AI involved here: the slot is checked against the calendar and claimed atomically.
 import { findBusiness } from "../businesses.mjs";
-import { findService, isTime, nowIn, dateProblem } from "../booking/calendar.mjs";
-import { availability, createBooking, listBookings } from "../booking/store.mjs";
-import { json, cleanCustomer, publicTimes } from "../booking/http.mjs";
-import { t, langOf, serviceLabel } from "../booking/i18n.mjs";
-
-const MAX_PER_PHONE_PER_DAY = 2;
+import { nowIn } from "../booking/calendar.mjs";
+import { savePhoto } from "../booking/store.mjs";
+import { placeBooking } from "../booking/actions.mjs";
+import { json, parsePhoto } from "../booking/http.mjs";
+import { t, langOf } from "../booking/i18n.mjs";
 
 export default async (req) => {
   if (req.method !== "POST") return json(405, { error: "Use POST." });
@@ -18,35 +17,28 @@ export default async (req) => {
   const business = findBusiness(key);
   if (!business?.booking) return json(404, { error: t(lang, "notAvailable") });
 
-  const service = findService(business, body.service);
-  if (!service) return json(400, { error: t(lang, "chooseService") });
-  const { date, time } = body;
+  // Check the photo before booking, so a bad file never leaves a half-made booking.
+  const photo = parsePhoto(body.photo);
+  if (photo?.error) return json(400, { error: t(lang, photo.error) });
+
   const now = nowIn(business.timezone);
-  const problem = dateProblem(business, date, now, lang);
-  if (problem) return json(400, { error: problem });
-  if (!isTime(time)) return json(400, { error: t(lang, "chooseTime") });
+  const r = await placeBooking(key, business, {
+    service: body.service, date: body.date, time: body.time, name: body.name, phone: body.phone,
+    stylist: body.stylist, notes: body.notes, whatsappOk: !!body.whatsappOk,
+    replaces: body.replaces || null, redoOf: body.redoOf || null, source: "chat",
+  }, now, lang);
+  if (!r.ok) return json(r.status, { error: r.error, ...(r.slots ? { slots: r.slots } : {}) });
 
-  const customer = cleanCustomer(body, lang);
-  if (customer.error) return json(400, { error: customer.error });
-
-  const sameDay = await listBookings(key, date);
-  const mine = sameDay.filter(b => b.status === "confirmed" && b.phone === customer.phone);
-  if (mine.length >= MAX_PER_PHONE_PER_DAY) {
-    return json(429, { error: t(lang, "tooMany", { n: mine.length }) });
-  }
-
-  const free = await availability(key, business, service, date, now);
-  const taken = () => json(409, {
-    error: t(lang, "taken"),
-    slots: { service: service.name, serviceAr: service.name_ar || null, date, times: publicTimes(free.filter(f => f.time !== time)) },
-  });
-  if (!free.some(f => f.time === time)) return taken();
-
-  const booking = await createBooking(key, business, service, date, time, customer);
-  if (!booking) return taken();
+  let booking = r.booking;
+  if (photo) booking = (await savePhoto(key, booking, photo.bytes, photo.type)) || booking;
 
   return json(200, {
-    booking: { ref: booking.id, service: booking.service, serviceAr: service.name_ar || null, date, time, name: booking.name, phone: booking.phone },
+    booking: {
+      ref: booking.id, service: booking.service, serviceAr: r.service.name_ar || null, date: booking.date, time: booking.time,
+      name: booking.name, phone: booking.phone, price: booking.price,
+      stylist: business.booking.stylists?.length ? r.stylistName : null,
+      notes: !!booking.notes, photos: booking.photos || 0, replaced: r.replaced?.id || null,
+    },
     demo: !!business.prospect,
   });
 };

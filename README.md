@@ -3,7 +3,9 @@
 A demo salon website with a working AI chat assistant that answers questions
 and books appointments from a live calendar. The AI only offers times that are
 really free, the customer taps a time to book, and the same time can never be
-booked twice. The salon manages bookings on a password-protected screen.
+booked twice. Customers can choose a stylist, leave notes and a reference photo,
+and cancel or move their own booking. Complaints are logged for the manager.
+The salon manages bookings on a password-protected screen.
 
 ## What's inside
 
@@ -12,9 +14,11 @@ booked twice. The salon manages bookings on a password-protected screen.
 | `public/index.html` | The demo salon website (Glow Studio, fictional) |
 | `public/widget.js` | The chat widget. One script tag adds it to any website |
 | `netlify/functions/chat.mjs` | Server code that talks to the AI. Keeps the API key secret. Gives the AI a tool to check the calendar |
-| `netlify/functions/book.mjs` | Books the time a customer taps (no AI involved), and refuses taken times |
+| `netlify/functions/book.mjs` | Books the time a customer taps (no AI involved), and refuses taken times. Also moves a booking to a new time |
+| `netlify/functions/manage.mjs` | Lets a customer cancel their own booking (reference + mobile number, no AI) |
+| `netlify/booking/actions.mjs` | The booking rules shared by the website and WhatsApp: book, move, cancel, free fix |
 | `netlify/functions/admin.mjs` + `public/admin.html` | The salon's bookings screen at `/admin.html` |
-| `netlify/booking/` | Calendar rules (`calendar.mjs`) and booking storage on Netlify Blobs (`store.mjs`) |
+| `netlify/booking/` | Calendar rules (`calendar.mjs`) and storage on Netlify Blobs (`store.mjs`): bookings, notes, photos, issues |
 | `netlify/businesses.mjs` | **Every business profile** (Glow Studio, Core Pilates and your prospects). Each one gets its own demo page |
 | `netlify/functions/profile.mjs` | Sends a business's public details to its demo page |
 | `public/demo.html` | The demo page used for every business at `/demo/<key>` |
@@ -52,6 +56,12 @@ Open the site and try:
   time was just taken and shows the times still free
 - Open `/admin.html`, enter the bookings password, and see, cancel or add bookings
 - "Do you do massages?"  (it should say no and offer WhatsApp)
+- "Haircut with Sara on Saturday"  (only Sara's free times appear; the form has a notes box and a photo button)
+- "What's in the pamper package?"  (it lists exactly what's included and the price)
+- "I'm allergic to hair dye, can I get colour?"  (it explains the patch test and asks for notes, no medical advice)
+- After booking: "Can I move it to 5 pm?" and "Cancel my booking"  (a new time list, or a confirm-cancel card)
+- "My gel chipped after 2 days"  (it apologises, explains the free-fix policy, offers to book the fix, and
+  logs the issue; it does not offer other times)
 
 ## Make a demo for a prospect (about 20 minutes)
 
@@ -88,9 +98,10 @@ The home page (`/`) is still the full Glow Studio website.
         data-whatsapp="9715XXXXXXXX"></script>
 ```
 
-Next upgrades to build: WhatsApp or email confirmations to the customer and the
-salon, and allowing the widget's chat and booking calls from the client's own
-website address (CORS) when it is embedded there.
+Next upgrades to build: email confirmations, and allowing the widget's chat and
+booking calls from the client's own website address (CORS) when it is embedded there.
+WhatsApp reminders, visit check-ins and "running late" alerts are in the WhatsApp
+add-on (WHATSAPP-SETUP.md).
 
 ## How booking works
 
@@ -102,20 +113,46 @@ website address (CORS) when it is embedded there.
 3. `book.mjs` claims every 15-minute block of that service for one stylist, using
    "write only if new" storage. If another customer got there first, nothing is booked
    and the customer sees the times still free.
-4. The salon sees bookings at `/admin.html`. Cancelling frees the time immediately.
-   Phone and walk-in bookings added there block the calendar too.
+4. The salon sees bookings at `/admin.html`, with the stylist, price, the customer's notes and
+   reference photos. Cancelling frees the time immediately. Phone and walk-in bookings added
+   there block the calendar too. Complaints the assistant logged appear at the top as
+   "Issues to follow up"; tap Done once handled.
 5. **Download Excel** on the same screen exports any date range (up to 3 months) as a
    formatted spreadsheet: a Bookings sheet with filters, ready to print, and a Summary
    sheet with bookings and hours per day and per service. The Excel library is bundled
    in `public/vendor/`, so nothing loads from outside.
 
 Each business's calendar is set in `netlify/businesses.mjs` under `booking`:
-- `staff`: how many clients can be served at once (stylists, chairs or rooms)
+- `stylists`: named stylists and the services each one does, e.g.
+  `{ name: "Sara", services: ["Haircut and blow-dry", "Hair colour (full)"] }`. Each has her own
+  calendar, so she is never booked for two clients at once, and customers can ask for her by name.
+- `staff`: instead of `stylists`, how many interchangeable places (chairs, rooms) there are
 - `slotMinutes`: start times every 15 (or 30) minutes
 - `leadMinutes`: how much notice same-day bookings need
 - `daysAhead`: how far ahead customers can book
 - `schedule`: opening times per weekday (`null` for closed)
+- `cancelHours`: customers can cancel or move online up to this many hours before (closer than
+  that, the bot gives the `handoff` contact)
 - Each service's `duration` sets how long it blocks the calendar
+
+Other profile settings that shape what the assistant says:
+- On a service: `consult: true` (cut, colour: asks for goals and shows the photo button),
+  `includes: [...]` (a package; the bot lists exactly what's in it), `priceNote` (explains "from" prices)
+- `care`: allergy, patch-test and safety information. The bot shares it and never gives medical advice.
+- `redo`: the free-fix policy, e.g. `{ days: 7, text: "If gel chips within 7 days, we fix it free." }`.
+  The bot can book the fix (marked "Free" on the booking) for the same service, same mobile number,
+  within that many days.
+- `reviewLink`: your Google review link, sent to every client in the WhatsApp visit check-in
+- `followups`: WhatsApp reminder and check-in timing and template names (see WHATSAPP-SETUP.md)
+
+## Changing and cancelling (no AI involved)
+
+- On the website, the assistant shows a confirm card. The customer enters the mobile number they
+  booked with, and `/api/manage` cancels it. Moving works the same way: the customer taps a new
+  time, enters their mobile number, and `/api/book` books the new time first, then cancels the old one.
+- On WhatsApp, the number is already known, so it's one tap.
+- Only the person who booked can change it (the mobile number must match), and only before the
+  `cancelHours` cut-off.
 
 A phone number can make at most 2 bookings per day (`MAX_PER_PHONE_PER_DAY` in
 `book.mjs`), to stop spam.

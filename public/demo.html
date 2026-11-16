@@ -127,6 +127,7 @@
       left.textContent = A && s.name_ar || s.name;
       const sub = document.createElement("span"); sub.textContent = A ? arDur(s.duration) : (s.duration || "");
       left.appendChild(sub);
+      if (s.includes && s.includes.length) { const inc = document.createElement("span"); inc.textContent = (A ? "تشمل: " : "Includes: ") + s.includes.join(", "); left.appendChild(inc); }
       const price = document.createElement("b"); price.textContent = A ? arPrice(s.price) : (s.price || "");
       li.append(left, price);
       $("services").appendChild(li);
@@ -152,6 +153,7 @@
   if (b.chips && b.chips.length) w.dataset.chips = b.chips.join("|");
   if (ar.chips && ar.chips.length) w.dataset.chipsAr = ar.chips.join("|");
   if (b.whatsapp) w.dataset.whatsapp = b.whatsapp;
+  if (b.followups) w.dataset.followups = "true";
   w.dataset.lang = lang;
   document.body.appendChild(w);
 

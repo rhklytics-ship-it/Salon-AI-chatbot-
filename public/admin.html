@@ -33,6 +33,16 @@
   .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #E3F2F0; color: #0A5A57; }
   .tag.owner { background: #FFF3D6; color: #6B4A00; }
   .empty { color: var(--muted); padding: 18px 4px; }
+  td.notes { white-space: normal; min-width: 180px; max-width: 280px; font-size: 13px; color: var(--muted); }
+  td.notes button, td .small { padding: 4px 10px; font-size: 12px; margin: 4px 4px 0 0; }
+  .late { display: inline-flex; gap: 4px; align-items: center; margin-left: 6px; }
+  .late select { padding: 5px 6px; font-size: 13px; }
+  .tag.move { background: #E8EEFC; color: #213F8F; } .tag.fix { background: #FDEBEC; color: #8A1C1C; }
+  .issue { border: 1px solid #F0C9C9; background: #FFF7F7; border-radius: 12px; padding: 12px 14px; margin-top: 10px; display: flex; gap: 12px; align-items: start; justify-content: space-between; }
+  .issue.resolved { opacity: .55; }
+  .issue p { margin: 2px 0; }
+  dialog { border: 0; border-radius: 14px; padding: 12px; max-width: min(92vw, 720px); }
+  dialog img { max-width: 100%; max-height: 75vh; display: block; border-radius: 8px; }
   [hidden] { display: none !important; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
@@ -40,7 +50,7 @@
 <body>
 <div class="wrap">
   <h1>Bookings</h1>
-  <p class="sub">See each day's bookings, cancel them, and add phone or walk-in bookings. The chatbot only offers times that are free here.</p>
+  <p class="sub">See each day's bookings with the client's notes and photos, follow up on issues, tell clients you're running late, and add phone or walk-in bookings. The chatbot only offers times that are free here.</p>
 
   <form class="panel" id="login">
     <div class="row">
@@ -63,10 +73,16 @@
       </div>
     </div>
 
+    <div class="panel" id="issuesPanel" hidden>
+      <b>Issues to follow up</b>
+      <p class="sub" style="margin:4px 0 0">Complaints the assistant logged today. Call the customer, then mark it done.</p>
+      <div id="issues"></div>
+    </div>
+
     <div class="panel">
       <div class="scroll">
         <table>
-          <thead><tr><th>Time</th><th>Service</th><th>Name</th><th>Mobile</th><th id="staffHead">Staff</th><th>Ref</th><th>From</th><th><span class="sr">Action</span></th></tr></thead>
+          <thead><tr><th>Time</th><th>Service</th><th>Name</th><th>Mobile</th><th id="staffHead">Staff</th><th>Price</th><th>Notes for the stylist</th><th>Ref</th><th>From</th><th><span class="sr">Action</span></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
@@ -93,12 +109,15 @@
         <label>Time<input type="time" name="time" step="900" required></label>
         <label>Name<input name="name" required maxlength="60"></label>
         <label>Mobile<input name="phone" type="tel" required maxlength="20"></label>
+        <label id="stylistWrap" hidden><span id="stylistLabel">Stylist</span><select name="stylist" id="stylistSel"></select></label>
+        <label style="flex:1 1 220px">Notes (optional)<input name="notes" maxlength="500"></label>
         <button type="submit">Add booking</button>
       </div>
       <p class="msg" id="addMsg" role="status"></p>
     </form>
   </div>
 </div>
+<dialog id="photoBox"><img id="photoImg" alt="Customer's reference photo"><form method="dialog" style="margin-top:8px;text-align:right"><button>Close</button></form></dialog>
 
 <script>
 (function () {
@@ -151,7 +170,7 @@
       if (!window.buildBookingsWorkbook) await loadScript("/bookings-export.js");
       const r = await api(`/api/admin?business=${encodeURIComponent(b.key)}&from=${from}&to=${to}`);
       if (!r.ok) throw new Error(r.data.error || "Could not load bookings.");
-      const wb = window.buildBookingsWorkbook(window.ExcelJS, { businessName: b.name, staffLabel: b.staffLabel, from, to, bookings: r.data.bookings });
+      const wb = window.buildBookingsWorkbook(window.ExcelJS, { businessName: b.name, staffLabel: b.staffLabel, staffNames: b.staffNames, from, to, bookings: r.data.bookings });
       const buf = await wb.xlsx.writeBuffer();
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const a = document.createElement("a"); a.href = url; a.download = `${b.key}-bookings-${from}-to-${to}.xlsx`;
@@ -167,9 +186,46 @@
     setRange("week");
     $("date").value = b.today;
     $("staffHead").textContent = b.staffLabel;
+    $("stylistLabel").textContent = b.staffLabel;
+    $("stylistWrap").hidden = !b.named;
+    $("stylistSel").innerHTML = '<option value="">Anyone free</option>';
+    b.staffNames.forEach(n => { const o = document.createElement("option"); o.value = n; o.textContent = n; $("stylistSel").appendChild(o); });
     $("svc").innerHTML = "";
     b.services.forEach(s => { const o = document.createElement("option"); o.textContent = s; $("svc").appendChild(o); });
     load();
+  }
+
+  async function showPhoto(id, n) {
+    const res = await fetch(`/api/admin?business=${encodeURIComponent($("biz").value)}&photo=${id}&n=${n}`, { headers: { "x-admin-key": key } });
+    if (!res.ok) { $("listMsg").textContent = "Could not load the photo."; return; }
+    const url = URL.createObjectURL(await res.blob());
+    $("photoImg").src = url;
+    $("photoBox").showModal();
+    $("photoBox").addEventListener("close", () => URL.revokeObjectURL(url), { once: true });
+  }
+
+  function renderIssues(list) {
+    $("issuesPanel").hidden = !list.length;
+    const box = $("issues"); box.innerHTML = "";
+    list.forEach(i => {
+      const div = document.createElement("div"); div.className = "issue" + (i.status === "resolved" ? " resolved" : "");
+      const text = document.createElement("div");
+      const p1 = document.createElement("p"); p1.textContent = i.summary;
+      const p2 = document.createElement("p"); p2.style.fontSize = "13px"; p2.style.color = "var(--muted)";
+      p2.textContent = [i.phone, i.ref ? "booking " + i.ref : "", i.wantsFix ? "wants the free fix" : "", "via " + (i.source || "chat"),
+        new Date(i.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })].filter(Boolean).join(" · ");
+      text.append(p1, p2); div.appendChild(text);
+      if (i.status !== "resolved") {
+        const b = document.createElement("button"); b.type = "button"; b.className = "ghost small"; b.textContent = "Done";
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          await api("/api/admin", { method: "POST", body: JSON.stringify({ action: "resolveIssue", business: $("biz").value, date: $("date").value, id: i.id }) });
+          load();
+        });
+        div.appendChild(b);
+      }
+      box.appendChild(div);
+    });
   }
 
   async function load() {
@@ -178,16 +234,33 @@
     $("listMsg").textContent = r.ok ? "" : (r.data.error || "Could not load bookings.");
     const rows = $("rows"); rows.innerHTML = "";
     const list = r.ok ? r.data.bookings : [];
+    renderIssues(r.ok ? (r.data.issues || []) : []);
     $("empty").hidden = list.length > 0;
     list.forEach(bk => {
       const tr = document.createElement("tr");
       if (bk.status === "cancelled") tr.className = "cancelled";
-      const cells = [niceTime(bk.time) + " (" + bk.minutes + " min)", bk.service, bk.name, bk.phone, (biz().staffLabel + " " + (bk.staff + 1)), bk.id];
+      const staff = biz().staffNames[bk.staff] || (biz().staffLabel + " " + (bk.staff + 1));
+      const cells = [niceTime(bk.time) + " (" + bk.minutes + " min)", bk.service, bk.name, bk.phone, staff, bk.price || ""];
       cells.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+      const notes = document.createElement("td"); notes.className = "notes";
+      const nt = document.createElement("div"); nt.textContent = bk.notes || (bk.photos ? "" : "None"); notes.appendChild(nt);
+      for (let n = 1; n <= (bk.photos || 0); n++) {
+        const pb = document.createElement("button"); pb.type = "button"; pb.className = "ghost"; pb.textContent = "Photo " + n;
+        pb.addEventListener("click", () => showPhoto(bk.id, n));
+        notes.appendChild(pb);
+      }
+      if (bk.lateNotice) { const l = document.createElement("div"); l.textContent = "Told running " + bk.lateNotice.minutes + " min late"; notes.appendChild(l); }
+      tr.appendChild(notes);
+      const ref = document.createElement("td"); ref.textContent = bk.id; tr.appendChild(ref);
       const src = document.createElement("td");
       const tag = document.createElement("span"); tag.className = "tag" + (bk.source === "owner" ? " owner" : "");
-      tag.textContent = bk.status === "cancelled" ? "Cancelled" : (bk.source === "owner" ? "Added by you" : bk.source === "whatsapp" ? "WhatsApp" : "Chatbot");
-      src.appendChild(tag); tr.appendChild(src);
+      tag.textContent = bk.status === "cancelled"
+        ? (bk.movedTo ? "Moved to " + bk.movedTo : String(bk.cancelledBy || "").startsWith("customer") ? "Cancelled by customer" : "Cancelled")
+        : (bk.source === "owner" ? "Added by you" : bk.source === "whatsapp" ? "WhatsApp" : "Chatbot");
+      src.appendChild(tag);
+      if (bk.rescheduledFrom) { const m = document.createElement("span"); m.className = "tag move"; m.style.marginLeft = "4px"; m.textContent = "Moved from " + bk.rescheduledFrom; src.appendChild(m); }
+      if (bk.redoOf) { const m = document.createElement("span"); m.className = "tag fix"; m.style.marginLeft = "4px"; m.textContent = "Free fix for " + bk.redoOf; src.appendChild(m); }
+      tr.appendChild(src);
       const act = document.createElement("td");
       if (bk.status !== "cancelled") {
         const b = document.createElement("button"); b.className = "danger"; b.type = "button"; b.textContent = "Cancel";
@@ -200,6 +273,19 @@
           load();
         });
         act.appendChild(b);
+        if (biz().lateAlerts && bk.date === biz().today) {
+          const wrap = document.createElement("span"); wrap.className = "late";
+          const sel = document.createElement("select"); sel.setAttribute("aria-label", "Minutes late for " + bk.name);
+          [10, 20, 30, 45].forEach(m => { const o = document.createElement("option"); o.value = m; o.textContent = m + " min"; sel.appendChild(o); });
+          const lb = document.createElement("button"); lb.type = "button"; lb.className = "ghost small"; lb.textContent = "Running late";
+          lb.addEventListener("click", async () => {
+            lb.disabled = true;
+            const r3 = await api("/api/admin", { method: "POST", body: JSON.stringify({ action: "late", business: $("biz").value, date: bk.date, id: bk.id, minutes: Number(sel.value) }) });
+            $("listMsg").textContent = r3.ok ? `WhatsApp sent to ${bk.name}: running ${sel.value} min late.` : (r3.data.error || "Could not send.");
+            lb.disabled = false; if (r3.ok) load();
+          });
+          wrap.append(sel, lb); act.appendChild(wrap);
+        }
       }
       tr.appendChild(act);
       rows.appendChild(tr);
@@ -219,7 +305,8 @@
     const f = e.target;
     const r = await api("/api/admin", { method: "POST", body: JSON.stringify({
       action: "add", business: $("biz").value, date: $("date").value,
-      service: f.service.value, time: f.time.value, name: f.name.value, phone: f.phone.value }) });
+      service: f.service.value, time: f.time.value, name: f.name.value, phone: f.phone.value,
+      stylist: f.stylist.value || undefined, notes: f.notes.value }) });
     $("addMsg").textContent = r.ok ? `Added. Ref ${r.data.booking.id}.` : (r.data.error || "Could not add booking.");
     $("addMsg").className = "msg" + (r.ok ? "" : " err");
     if (r.ok) { f.reset(); load(); }
