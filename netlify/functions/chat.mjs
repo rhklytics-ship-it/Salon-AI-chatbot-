@@ -98,13 +98,13 @@ Booking:
 - If they ask for a specific time, check it and say whether it is free; if not, suggest the nearest free times.
 - If the day is full or closed, use next_available from the tool to suggest other days.
 - If they ask for a stylist by name, pass it as "stylist". If that stylist is busy, say so and offer the stylist's next free times or another stylist; never book someone else without saying so.
-- For consultation services (cut, colour), ask in one short sentence what they would like.${web ? " Tell them the booking form has a notes box and a reference-photo button for their stylist." : " Tell them they can send a reference photo here after booking, and it is saved for their stylist."}
+- For consultation services (cut, colour), still check availability straight away when you know the service and day; in that same reply, ask in one short sentence what they would like.${web ? " Tell them the booking form has a notes box and a reference-photo button for their stylist." : " Tell them they can send a reference photo here after booking, and it is saved for their stylist."}
 - Prices: quote only the listed price. For "from" prices, explain the price note. For packages, list exactly what is included and nothing else. The booking confirmation shows the price.
 
 Changing or cancelling a booking (the customer does it here, you never cancel or move anything yourself):
 - Customers can cancel or move a booking free of charge up to ${cutoff} hours before it starts. Closer than that, give: ${b.handoff}
 - First get the booking: use the reference from this chat${web ? ", or ask for their 6-character booking reference and call find_booking" : ", or call my_bookings"}.
-- To cancel: call offer_cancel with the reference. A confirm button appears for the customer${web ? ", who enters the mobile number they booked with" : ""}. Say only that they can confirm below.
+- To cancel: call offer_cancel with the reference. A confirm button appears for the customer. Say only what the tool result tells you about confirming.
 - To move: ask for the new day (and time), then call check_availability with reschedule_ref set to the reference. When they tap a new time, the old booking is cancelled automatically.` : `
 Booking:
 - Online booking is not available. For appointments: ${b.handoff}`;
@@ -121,7 +121,7 @@ Allergies and safety: you have no information on this. Never give medical advice
 When a customer is unhappy with a visit:
 - Apologise once, sincerely and briefly. Do not argue, blame the customer, or defend the salon.
 - If unclear, ask what went wrong and which booking (reference or date).
-${b.redo?.text ? `- Fix policy: ${b.redo.text} If it applies, offer to book the free fix: call check_availability with redo_of set to the original booking reference and the same service.\n` : ""}- Always log it with report_issue so the manager follows up today.${web ? " On the website, ask for the mobile number they booked with before logging, so the manager can call them." : ""}
+${b.redo?.text ? `- Fix policy: ${b.redo.text} If it applies, offer to book the free fix: call check_availability with redo_of set to the original booking reference and the same service.\n` : ""}- Log it with report_issue so the manager follows up today, once per complaint: if this conversation shows it was already logged, don't log it again.${web ? " On the website, ask for the mobile number they booked with before logging, so the manager can call them." : ""}
 - Never promise refunds, discounts or compensation beyond the policy above.
 `;
 
@@ -270,7 +270,9 @@ async function runTool(name, input, ctx) {
     if (!changeAllowed(b, bk, now)) return { forAI: { error: `Too close to the appointment to cancel online (less than ${b.booking.cancelHours} hours). Give the contact details.` } };
     const known = booked.find(x => x.id === bk.id);
     return {
-      forAI: { shown: "A confirm-cancel button is now shown to the customer. Tell them to confirm below." },
+      forAI: { shown: known
+        ? "A confirm-cancel button is now shown. Their mobile number is already known, so they just tap Cancel booking."
+        : "A confirm-cancel button is now shown, with a box for the mobile number they booked with. Tell them to confirm below." },
       manage: { action: "cancel", ref: bk.id, service: bk.service, serviceAr: findService(b, bk.service)?.name_ar || null, date: bk.date, time: bk.time, knownPhone: !!known },
     };
   }
@@ -361,6 +363,7 @@ export async function runChat({ key, lang = "en", messages: rawMessages, booking
     const toolList = tools(business, channel);
     const ctx = { key, business, now, channel, phone, booked: [...booked, ...past], issueLogged: false };
     let slots = null, manage = null;
+    const said = [];   // text the AI writes in every round: it often answers *before* calling a tool
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const data = await callClaude(apiKey, {
@@ -370,8 +373,10 @@ export async function runChat({ key, lang = "en", messages: rawMessages, booking
       if (!data) return { status: 502, body: { error: t(lang, "busy") } };
 
       const uses = (data.content || []).filter(c => c.type === "tool_use");
+      const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("\n").trim();
+      if (text && !said.includes(text)) said.push(text);
       if (data.stop_reason !== "tool_use" || !uses.length) {
-        const reply = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("\n").trim();
+        const reply = said.join("\n\n").trim();
         return { status: 200, body: { reply: reply || "Sorry, could you say that again?", slots, manage } };
       }
 
