@@ -291,6 +291,15 @@ async function runTool(name, input, ctx) {
   return { forAI: { error: "Unknown tool." } };
 }
 
+// What to say if the AI gives no words after using a tool.
+function fallbackReply(lastTool, lang, slots, manage) {
+  const r = lastTool?.result || {};
+  if (lastTool?.name === "report_issue") return t(lang, r.logged ? "issueLogged" : r.error ? "askPhoneIssue" : "sayAgain");
+  if (manage) return t(lang, "confirmBelow");
+  if (slots) return t(lang, "tapTime");
+  return t(lang, "sayAgain");
+}
+
 function cleanMessages(input) {
   if (!Array.isArray(input)) return null;
   const msgs = [];
@@ -364,6 +373,8 @@ export async function runChat({ key, lang = "en", messages: rawMessages, booking
     const ctx = { key, business, now, channel, phone, booked: [...booked, ...past], issueLogged: false };
     let slots = null, manage = null;
     const said = [];   // text the AI writes in every round: it often answers *before* calling a tool
+    let lastTool = null;  // { name, result } of the most recent tool, for a fallback reply
+    let nudged = false;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const data = await callClaude(apiKey, {
@@ -377,7 +388,16 @@ export async function runChat({ key, lang = "en", messages: rawMessages, booking
       if (text && !said.includes(text)) said.push(text);
       if (data.stop_reason !== "tool_use" || !uses.length) {
         const reply = said.join("\n\n").trim();
-        return { status: 200, body: { reply: reply || "Sorry, could you say that again?", slots, manage } };
+        if (reply) return { status: 200, body: { reply, slots, manage } };
+        // The AI sometimes ends its turn with no words after a tool (seen after report_issue).
+        // Ask once more; if it is still silent, use a fixed reply that fits the tool.
+        console.warn("AI returned an empty reply", JSON.stringify({ stop: data.stop_reason, blocks: (data.content || []).map(c => c.type), lastTool: lastTool?.name, round }));
+        if (lastTool && !nudged && round < MAX_TOOL_ROUNDS) {
+          nudged = true;
+          messages[messages.length - 1].content.push({ type: "text", text: "(Now write your reply to the customer.)" });
+          continue;
+        }
+        return { status: 200, body: { reply: fallbackReply(lastTool, lang, slots, manage), slots, manage } };
       }
 
       messages.push({ role: "assistant", content: data.content });
@@ -386,6 +406,7 @@ export async function runChat({ key, lang = "en", messages: rawMessages, booking
         const out = await runTool(use.name, use.input, ctx);
         if (out.slots) slots = out.slots;
         if (out.manage) manage = out.manage;
+        lastTool = { name: use.name, result: out.forAI };
         results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(out.forAI) });
       }
       messages.push({ role: "user", content: results });

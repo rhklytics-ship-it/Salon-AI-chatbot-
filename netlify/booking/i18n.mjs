@@ -24,6 +24,11 @@ const M = {
     cancelledOk: "Your booking {ref} is cancelled. The time is free for others now.",
     moved: "Moved. Your new booking replaces {old}.",
     redoNotAllowed: "That booking isn't eligible for a free fix online. {handoff}",
+    issueLogged: "Thank you for telling us, and sorry again. I've passed this to our manager, who will contact you today.",
+    askPhoneIssue: "So our manager can call you, could you share the mobile number you booked with?",
+    confirmBelow: "Please confirm below.",
+    tapTime: "Here are the free times. Tap one to book.",
+    sayAgain: "Sorry, could you say that again?",
   },
   ar: {
     chooseService: "يرجى اختيار الخدمة.",
@@ -47,6 +52,11 @@ const M = {
     cancelledOk: "تم إلغاء حجزك {ref}. أصبح الوقت متاحًا للآخرين الآن.",
     moved: "تم النقل. حجزك الجديد يحل محل {old}.",
     redoNotAllowed: "هذا الحجز غير مؤهل لإصلاح مجاني عبر الإنترنت. {handoff}",
+    issueLogged: "شكرًا لإخبارنا، ونعتذر مرة أخرى. نقلت الأمر إلى المدير، وسيتواصل معك اليوم.",
+    askPhoneIssue: "حتى يتمكن المدير من الاتصال بك، هل يمكنك مشاركة رقم الجوال المستخدم في الحجز؟",
+    confirmBelow: "يرجى التأكيد أدناه.",
+    tapTime: "هذه هي الأوقات المتاحة. اضغط على وقت للحجز.",
+    sayAgain: "عذرًا، هل يمكنك إعادة ما قلته؟",
   },
 };
 
