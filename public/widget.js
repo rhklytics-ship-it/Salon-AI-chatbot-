@@ -8,7 +8,10 @@
           data-greeting-ar="أهلًا! يمكنني مساعدتك في الأسعار ومواعيد العمل والحجز."
           data-chips="See prices|Book an appointment" data-chips-ar="الأسعار|حجز موعد"
           data-lang="auto"
+          data-followups="true"
           data-whatsapp="971500000000"></script>
+  data-followups="true" shows a tick box in the booking form to get a WhatsApp
+  reminder and a follow-up after the visit (needs the WhatsApp add-on).
   data-lang: "en", "ar", or "auto" (Arabic if the visitor's browser is Arabic).
   The chat also switches to Arabic when a visitor writes in Arabic, and has an
   English / عربي switch in its header. Pages can call window.RKChat.setLang("ar").
@@ -28,6 +31,8 @@
     whatsapp: (ds.whatsapp || "").replace(/\D/g, ""),
     endpoint: ds.endpoint || new URL("/api/chat", script?.src || location.href).href,
     bookEndpoint: new URL("/api/book", script?.src || location.href).href,
+    manageEndpoint: new URL("/api/manage", script?.src || location.href).href,
+    followups: ds.followups === "true",
   };
 
   const T = {
@@ -43,6 +48,16 @@
       noBook: "Can't reach the booking system. Check your connection and try again.",
       noChat: "Can't reach the assistant. Check your connection and try again.",
       person: "Prefer a person?", whatsapp: "Message us on WhatsApp", ai: "AI assistant",
+      fPrice: "Price", fStylist: "Stylist", withStylist: "with {name}", payNote: "Pay in the salon.",
+      notes: "Notes for your stylist (optional)", notesConsult: "What you'd like, allergies, past treatments (optional)",
+      notesPh: "e.g. shoulder length, soft layers. No allergies.", photo: "Reference photo (optional)", photoBig: "That photo couldn't be read. Try another one.",
+      optin: "Send me a reminder and a follow-up on WhatsApp", saved: "Notes and photo saved for your stylist.", savedNotes: "Notes saved for your stylist.",
+      moveAt: "Move {ref} to {time} on {date}", moveGo: "Move booking", moving: "Moving...", movedTitle: "Booking moved",
+      movedDone: "Done. You're now booked for {service} on {date} at {time}, reference {ref}. Your old booking {old} is cancelled.",
+      fixAt: "Free fix: {time} on {date}",
+      cancelQ: "Cancel {service} on {date} at {time} (ref {ref})?", cancelPhone: "Mobile number you booked with",
+      cancelGo: "Cancel booking", cancelling: "Cancelling...", keep: "Keep it", kept: "No problem, your booking stays as it is.",
+      cancelledTitle: "Booking cancelled",
     },
     ar: {
       online: "متصل، يرد فورًا", placeholder: "اكتب رسالتك...", send: "إرسال", close: "إغلاق المحادثة",
@@ -56,6 +71,16 @@
       noBook: "تعذّر الوصول إلى نظام الحجز. تحقق من الاتصال وحاول مرة أخرى.",
       noChat: "تعذّر الوصول إلى المساعد. تحقق من الاتصال وحاول مرة أخرى.",
       person: "تفضّل التحدث مع شخص؟", whatsapp: "راسلنا على واتساب", ai: "مساعد ذكي",
+      fPrice: "السعر", fStylist: "المصففة", withStylist: "مع {name}", payNote: "الدفع في الصالون.",
+      notes: "ملاحظات للمصففة (اختياري)", notesConsult: "ما الذي تريدينه، الحساسية، العلاجات السابقة (اختياري)",
+      notesPh: "مثال: حتى الكتف، طبقات خفيفة. لا توجد حساسية.", photo: "صورة مرجعية (اختياري)", photoBig: "تعذّرت قراءة الصورة. جرّبي صورة أخرى.",
+      optin: "أرسلوا لي تذكيرًا ومتابعة على واتساب", saved: "تم حفظ الملاحظات والصورة للمصففة.", savedNotes: "تم حفظ الملاحظات للمصففة.",
+      moveAt: "نقل {ref} إلى {time} يوم {date}", moveGo: "نقل الحجز", moving: "جارٍ النقل...", movedTitle: "تم نقل الحجز",
+      movedDone: "تم. حجزك الآن: {service} يوم {date} الساعة {time}، رقم الحجز {ref}. تم إلغاء حجزك السابق {old}.",
+      fixAt: "إصلاح مجاني: {time} يوم {date}",
+      cancelQ: "إلغاء {service} يوم {date} الساعة {time} (رقم {ref})؟", cancelPhone: "رقم الجوال المستخدم في الحجز",
+      cancelGo: "إلغاء الحجز", cancelling: "جارٍ الإلغاء...", keep: "الإبقاء عليه", kept: "لا مشكلة، حجزك باقٍ كما هو.",
+      cancelledTitle: "تم إلغاء الحجز",
     },
   };
   let lang = ds.lang === "ar" || ds.lang === "en" ? ds.lang
@@ -67,7 +92,7 @@
   .rk-launch{position:fixed;right:20px;bottom:20px;z-index:2147483000;width:60px;height:60px;border-radius:50%;border:0;cursor:pointer;
     background:${cfg.color};color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.25);display:grid;place-items:center}
   .rk-launch svg{width:28px;height:28px}
-  .rk-launch:focus-visible,.rk-panel button:focus-visible,.rk-panel input:focus-visible{outline:3px solid #F4B33E;outline-offset:2px}
+  .rk-launch:focus-visible,.rk-panel button:focus-visible,.rk-panel input:focus-visible,.rk-panel textarea:focus-visible{outline:3px solid #F4B33E;outline-offset:2px}
   .rk-panel{position:fixed;right:20px;bottom:92px;z-index:2147483000;width:370px;max-width:calc(100vw - 32px);height:560px;max-height:calc(100vh - 120px);
     background:#fff;color:#1d2430;border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.28);display:none;flex-direction:column;overflow:hidden;
     font:15px/1.5 system-ui,-apple-system,"Segoe UI",Tahoma,"Noto Sans Arabic",Roboto,sans-serif}
@@ -101,6 +126,14 @@
   .rk-book .rk-go{border:0;background:${cfg.color};color:#fff;border-radius:999px;padding:11px;font:inherit;font-weight:600;cursor:pointer}
   .rk-book .rk-go:disabled{opacity:.5;cursor:default}
   .rk-book small{color:#8A1C1C;font-size:12px}
+  .rk-book [hidden]{display:none!important}
+  .rk-book textarea{border:1px solid #D9D4CF;border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;resize:vertical;min-height:58px;unicode-bidi:plaintext}
+  .rk-book input[type=file]{border:0;padding:0;font-size:13px}
+  .rk-book .rk-tick{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:#1d2430}
+  .rk-book .rk-tick input{width:18px;height:18px;margin:0}
+  .rk-sub{font-size:13px;color:#6B7380;font-weight:400}
+  .rk-acts{display:flex;gap:8px;flex-wrap:wrap}
+  .rk-acts .rk-keep{border:1px solid #D9D4CF;background:#fff;color:#1d2430;border-radius:999px;padding:10px 14px;font:inherit;cursor:pointer}
   .rk-typing{align-self:flex-start;background:#fff;border-radius:14px;padding:12px 14px;display:flex;gap:4px}
   .rk-typing i{width:7px;height:7px;border-radius:50%;background:#9AA1AB;animation:rk-b 1s infinite}
   .rk-typing i:nth-child(2){animation-delay:.15s}.rk-typing i:nth-child(3){animation-delay:.3s}
@@ -154,7 +187,8 @@
   const langBtn = panel.querySelector(".rk-lang");
 
   const history = [];
-  const booked = [];   // { ref, date } of bookings made in this chat, sent so the server can verify them
+  const booked = [];   // { ref, date, phone } of bookings made in this chat; only ref + date are sent to the server
+  let activePicker = null;   // only one set of time buttons at a time, so old offers don't linger
   let busy = false;
   let greetEl = null;
 
@@ -220,29 +254,68 @@
     if (tell) window.dispatchEvent(new CustomEvent("rk-lang", { detail: lang }));
   }
 
-  function bookingCard(b, demo) {
+  function bookingCard(b, demo, titleKey) {
     const card = document.createElement("div");
     card.className = "rk-card";
     const title = document.createElement("b");
-    title.textContent = demo ? tr("demoSaved") : tr("confirmed");
+    title.textContent = titleKey ? tr(titleKey) : demo ? tr("demoSaved") : tr("confirmed");
     const dl = document.createElement("dl");
-    [[tr("fService"), svcName(b.service, b.serviceAr)], [tr("fDate"), niceDate(b.date)], [tr("fTime"), niceTime(b.time)],
-     [tr("fName"), b.name], [tr("fMobile"), b.phone], [tr("fRef"), b.ref]].forEach(([k, v]) => {
+    const rows = [[tr("fService"), svcName(b.service, b.serviceAr)], [tr("fDate"), niceDate(b.date)], [tr("fTime"), niceTime(b.time)]];
+    if (b.stylist) rows.push([tr("fStylist"), b.stylist]);
+    if (b.price) rows.push([tr("fPrice"), b.price]);
+    if (b.name) rows.push([tr("fName"), b.name]);
+    if (b.phone) rows.push([tr("fMobile"), b.phone]);
+    rows.push([tr("fRef"), b.ref]);
+    rows.forEach(([k, v]) => {
       const dt = document.createElement("dt"); dt.textContent = k;
       const dd = document.createElement("dd"); dd.textContent = v;
       dl.append(dt, dd);
     });
     card.append(title, dl);
+    if (b.photos || b.notes) {
+      const p = document.createElement("p"); p.className = "rk-sub"; p.style.margin = "8px 0 0";
+      p.textContent = b.photos ? tr("saved") : tr("savedNotes");
+      card.appendChild(p);
+    }
     log.appendChild(card);
     log.scrollTop = log.scrollHeight;
   }
 
-  // Free times as buttons; tapping one opens a short name + mobile form.
+  // Shrinks a photo in the browser (longest side 1280 px, JPEG) so it uploads quickly.
+  function shrinkPhoto(file) {
+    return new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type)) return reject(new Error("type"));
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("read")); };
+      img.src = url;
+    });
+  }
+
+  const knownPhone = (ref) => (booked.find(x => x.ref === ref) || booked[booked.length - 1] || {}).phone || "";
+
+  // Free times as buttons; tapping one opens a short form.
+  // sl.replaces = moving an existing booking (only the mobile number is asked).
+  // sl.redoOf = a free fix for an earlier booking.
   function slotPicker(sl) {
+    if (activePicker) activePicker.remove();   // a new offer replaces the old one
     const box = document.createElement("div");
     box.className = "rk-slots";
+    activePicker = box;
     const head = document.createElement("b");
     head.textContent = svcName(sl.service, sl.serviceAr) + " · " + niceDate(sl.date);
+    const sub = document.createElement("span");
+    sub.className = "rk-sub";
+    sub.textContent = [sl.stylist ? tr("withStylist", { name: sl.stylist }) : "", sl.price || ""].filter(Boolean).join(" · ");
+    if (sub.textContent) { head.append(" "); head.appendChild(sub); }
     const grid = document.createElement("div");
     grid.className = "rk-times";
     grid.setAttribute("role", "group");
@@ -250,6 +323,7 @@
     const SHOW = 12;
     let picked = null;
     const buttons = [];
+    const moving = !!sl.replaces;
     function addTime(t) {
       const b = document.createElement("button");
       b.type = "button"; b.textContent = niceTime(t); b.setAttribute("aria-pressed", "false"); b.setAttribute("dir", "ltr");
@@ -257,8 +331,9 @@
         picked = t;
         buttons.forEach(x => x.setAttribute("aria-pressed", String(x === b)));
         bform.hidden = false;
-        title.textContent = tr("bookAt", { time: niceTime(t), date: niceDate(sl.date) });
-        nameIn.focus();
+        const v = { time: niceTime(t), date: niceDate(sl.date), ref: sl.replaces };
+        title.textContent = moving ? tr("moveAt", v) : sl.redoOf ? tr("fixAt", v) : tr("bookAt", v);
+        (moving ? phoneIn : nameIn).focus();
       });
       buttons.push(b); grid.appendChild(b);
     }
@@ -273,52 +348,126 @@
 
     const bform = document.createElement("form");
     bform.className = "rk-book"; bform.hidden = true;
-    bform.innerHTML = '<b></b><label><span></span><input name="name" autocomplete="name" maxlength="60" required></label>' +
+    bform.innerHTML = '<b></b>' +
+      '<label data-f="name"><span></span><input name="name" autocomplete="name" maxlength="60"></label>' +
       '<label><span></span><input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="05X XXX XXXX" required></label>' +
+      '<label data-f="notes"><span></span><textarea name="notes" maxlength="500" rows="2"></textarea></label>' +
+      '<label data-f="photo"><span></span><input name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>' +
+      '<label class="rk-tick" data-f="optin"><input name="optin" type="checkbox"><span></span></label>' +
       '<small role="alert"></small><button class="rk-go" type="submit"></button>';
-    const labels = bform.querySelectorAll("label span");
-    labels[0].textContent = tr("name"); labels[1].textContent = tr("phone");
+    const field = (f) => bform.querySelector(`[data-f="${f}"]`);
     const title = bform.querySelector("b");
     const nameIn = bform.querySelector('[name="name"]');
     const phoneIn = bform.querySelector('[name="phone"]');
+    const notesIn = bform.querySelector('[name="notes"]');
+    const photoIn = bform.querySelector('[name="photo"]');
+    const optIn = bform.querySelector('[name="optin"]');
     const msg = bform.querySelector("small");
     const go = bform.querySelector(".rk-go");
-    go.textContent = tr("confirm");
+    field("name").querySelector("span").textContent = tr("name");
+    phoneIn.closest("label").querySelector("span").textContent = moving ? tr("cancelPhone") : tr("phone");
+    field("notes").querySelector("span").textContent = sl.consult ? tr("notesConsult") : tr("notes");
+    notesIn.placeholder = sl.consult ? tr("notesPh") : "";
+    field("photo").querySelector("span").textContent = tr("photo");
+    field("optin").querySelector("span").textContent = tr("optin");
+    if (moving) { field("name").hidden = true; field("notes").hidden = true; field("photo").hidden = true; field("optin").hidden = true; }
+    else nameIn.required = true;
+    if (!sl.consult) field("photo").hidden = true;
+    if (!cfg.followups) field("optin").hidden = true;
+    phoneIn.value = moving || sl.redoOf ? knownPhone(sl.replaces || sl.redoOf) : "";
+    go.textContent = moving ? tr("moveGo") : tr("confirm");
+
     bform.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!picked) return;
-      msg.textContent = ""; go.disabled = true; go.textContent = tr("booking");
+      msg.textContent = ""; go.disabled = true; go.textContent = moving ? tr("moving") : tr("booking");
       try {
+        let photo = null;
+        if (!moving && photoIn.files && photoIn.files[0]) {
+          try { photo = await shrinkPhoto(photoIn.files[0]); }
+          catch { msg.textContent = tr("photoBig"); go.disabled = false; go.textContent = tr("confirm"); return; }
+        }
         const res = await fetch(cfg.bookEndpoint, {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ business: cfg.business || undefined, service: sl.service, date: sl.date, time: picked,
-            name: nameIn.value, phone: phoneIn.value, lang }),
+            name: nameIn.value, phone: phoneIn.value, notes: notesIn.value, photo, whatsappOk: optIn.checked,
+            stylist: sl.stylist || undefined, replaces: sl.replaces || undefined, redoOf: sl.redoOf || undefined, lang }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.booking) {
-          box.remove();
+          box.remove(); activePicker = null;
           const b = data.booking;
-          bookingCard(b, data.demo);
-          booked.push({ ref: b.ref, date: b.date });
-          const done = tr("done", { service: svcName(b.service, b.serviceAr), date: niceDate(b.date), time: niceTime(b.time), ref: b.ref });
+          bookingCard(b, data.demo, b.replaced ? "movedTitle" : null);
+          booked.push({ ref: b.ref, date: b.date, phone: phoneIn.value });
+          const v = { service: svcName(b.service, b.serviceAr), date: niceDate(b.date), time: niceTime(b.time), ref: b.ref, old: b.replaced };
+          const done = b.replaced ? tr("movedDone", v) : tr("done", v);
           history.push({ role: "assistant", content: done });
           add("rk-bot", done);
           return;
         }
         if (res.status === 409 && data.slots) {
-          box.remove();
+          box.remove(); activePicker = null;
           add("rk-err", data.error);
-          if (data.slots.times.length) slotPicker(data.slots);
+          if (data.slots.times.length) slotPicker({ ...sl, ...data.slots, consult: sl.consult, price: sl.price });
           return;
         }
         msg.textContent = data.error || tr("wrong");
       } catch {
         msg.textContent = tr("noBook");
       }
-      go.disabled = false; go.textContent = tr("confirm");
+      go.disabled = false; go.textContent = moving ? tr("moveGo") : tr("confirm");
     });
     box.appendChild(bform);
     log.appendChild(box);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // "Cancel this booking?" with a confirm button. Nothing is cancelled until the customer confirms.
+  function manageCard(m) {
+    const card = document.createElement("form");
+    card.className = "rk-slots rk-book";
+    const q = document.createElement("b");
+    q.textContent = tr("cancelQ", { service: svcName(m.service, m.serviceAr), date: niceDate(m.date), time: niceTime(m.time), ref: m.ref });
+    const label = document.createElement("label");
+    const span = document.createElement("span"); span.textContent = tr("cancelPhone");
+    const phoneIn = document.createElement("input");
+    phoneIn.type = "tel"; phoneIn.required = true; phoneIn.maxLength = 20; phoneIn.placeholder = "05X XXX XXXX"; phoneIn.autocomplete = "tel";
+    phoneIn.value = knownPhone(m.ref);
+    label.append(span, phoneIn);
+    if (phoneIn.value) label.hidden = true;
+    const msg = document.createElement("small"); msg.setAttribute("role", "alert");
+    const acts = document.createElement("div"); acts.className = "rk-acts";
+    const go = document.createElement("button"); go.type = "submit"; go.className = "rk-go"; go.textContent = tr("cancelGo");
+    const keep = document.createElement("button"); keep.type = "button"; keep.className = "rk-keep"; keep.textContent = tr("keep");
+    acts.append(go, keep);
+    card.append(q, label, msg, acts);
+    keep.addEventListener("click", () => {
+      card.remove();
+      history.push({ role: "assistant", content: tr("kept") });
+      add("rk-bot", tr("kept"));
+    });
+    card.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = ""; go.disabled = true; go.textContent = tr("cancelling");
+      try {
+        const res = await fetch(cfg.manageEndpoint, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ business: cfg.business || undefined, action: "cancel", ref: m.ref, phone: phoneIn.value, lang }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.cancelled) {
+          card.remove();
+          bookingCard({ ...data.cancelled, serviceAr: m.serviceAr }, false, "cancelledTitle");
+          history.push({ role: "assistant", content: data.message });
+          add("rk-bot", data.message);
+          return;
+        }
+        label.hidden = false;
+        msg.textContent = data.error || tr("wrong");
+      } catch { msg.textContent = tr("noBook"); }
+      go.disabled = false; go.textContent = tr("cancelGo");
+    });
+    log.appendChild(card);
     log.scrollTop = log.scrollHeight;
   }
 
@@ -340,7 +489,7 @@
       const res = await fetch(cfg.endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history, business: cfg.business || undefined, bookings: booked, lang }),
+        body: JSON.stringify({ messages: history, business: cfg.business || undefined, bookings: booked.map(({ ref, date }) => ({ ref, date })), lang }),
       });
       const data = await res.json().catch(() => ({}));
       typing.remove();
@@ -351,6 +500,7 @@
         add("rk-bot", data.reply);
         history.push({ role: "assistant", content: data.reply });
         if (data.slots && data.slots.times && data.slots.times.length) slotPicker(data.slots);
+        if (data.manage && data.manage.action === "cancel") manageCard(data.manage);
       }
     } catch {
       typing.remove();

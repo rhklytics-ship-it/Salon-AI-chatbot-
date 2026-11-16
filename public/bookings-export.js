@@ -13,7 +13,8 @@
   const excelDate = (d) => new Date(d + "T00:00:00Z");
 
   function build(ExcelJS, opts) {
-    const { businessName, staffLabel = "Staff", from, to, bookings } = opts;
+    const { businessName, staffLabel = "Staff", staffNames = [], from, to, bookings } = opts;
+    const staffOf = (b) => staffNames[b.staff] || staffLabel + " " + (b.staff + 1);
     const wb = new ExcelJS.Workbook();
     wb.creator = "RHKLytics booking assistant";
     wb.created = new Date();
@@ -30,8 +31,9 @@
       { header: "Start", key: "start", width: 8 }, { header: "End", key: "end", width: 8 },
       { header: "Service", key: "service", width: 26 }, { header: "Mins", key: "minutes", width: 7 },
       { header: "Customer", key: "name", width: 22 }, { header: "Mobile", key: "phone", width: 16 },
-      { header: staffLabel, key: "staff", width: 11 }, { header: "Ref", key: "ref", width: 10 },
-      { header: "Booked via", key: "source", width: 12 }, { header: "Status", key: "status", width: 11 },
+      { header: staffLabel, key: "staff", width: 11 }, { header: "Price", key: "price", width: 16 },
+      { header: "Notes", key: "notes", width: 40 }, { header: "Ref", key: "ref", width: 10 },
+      { header: "Booked via", key: "source", width: 12 }, { header: "Status", key: "status", width: 14 },
     ];
     ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
 
@@ -60,15 +62,15 @@
       const row = ws.addRow({
         date: excelDate(b.date), day: day(b.date), start: b.time, end: hhmm(toMin(b.time) + b.minutes),
         service: b.service, minutes: b.minutes, name: b.name, phone: String(b.phone),
-        staff: staffLabel + " " + (b.staff + 1), ref: b.id,
+        staff: staffOf(b), price: b.price || "", notes: [b.notes, b.photos ? `${b.photos} photo(s)` : ""].filter(Boolean).join(" · "), ref: b.id,
         source: b.source === "owner" ? "Owner" : b.source === "whatsapp" ? "WhatsApp" : "Chatbot",
-        status: b.status === "cancelled" ? "Cancelled" : "Confirmed",
+        status: b.status === "cancelled" ? (b.movedTo ? "Moved" : "Cancelled") : b.redoOf ? "Free fix" : "Confirmed",
       });
       row.getCell("date").numFmt = "dd mmm yyyy";
       row.getCell("phone").numFmt = "@";
       row.eachCell({ includeEmpty: true }, cell => {
         cell.font = { name: "Calibri", size: 11, color: { argb: INK } };
-        cell.alignment = { vertical: "middle", horizontal: "left" };
+        cell.alignment = { vertical: "middle", horizontal: "left", wrapText: cell.col === 11 };
         cell.border = { bottom: { style: "thin", color: { argb: LINE } } };
         if (band) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND } };
       });

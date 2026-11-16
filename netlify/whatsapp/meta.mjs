@@ -62,3 +62,38 @@ export const sendButtons = (to, { body, buttons }) =>
   });
 
 export const markRead = (messageId) => send({ status: "read", message_id: messageId });
+
+export const whatsappReady = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID);
+
+// A pre-approved template: the only kind of message a business may send first
+// (reminders, check-ins, delay alerts). Meta charges for these.
+// params: texts for {{1}}, {{2}}, ... in the body. buttons: payloads for each quick-reply button, in order.
+export const sendTemplate = (to, { name, language = "en", params = [], buttons = [] }) =>
+  send({
+    to, type: "template",
+    template: {
+      name, language: { code: language },
+      components: [
+        ...(params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: cut(p || "-", 1000) })) }] : []),
+        ...buttons.map((payload, i) => ({ type: "button", sub_type: "quick_reply", index: String(i), parameters: [{ type: "payload", payload: cut(payload, 128) }] })),
+      ],
+    },
+  });
+
+// Downloads a photo the customer sent. Returns { bytes, type } or null.
+export async function getMedia(mediaId, maxBytes = 5 * 1024 * 1024) {
+  const auth = { authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` };
+  try {
+    const info = await fetch(`https://graph.facebook.com/${VERSION}/${encodeURIComponent(mediaId)}`, { headers: auth });
+    if (!info.ok) { console.error("WhatsApp media lookup failed", info.status); return null; }
+    const meta = await info.json();
+    if (!meta?.url || (meta.file_size && meta.file_size > maxBytes)) return null;
+    const file = await fetch(meta.url, { headers: auth });
+    if (!file.ok) { console.error("WhatsApp media download failed", file.status); return null; }
+    const bytes = Buffer.from(await file.arrayBuffer());
+    return bytes.length <= maxBytes ? { bytes, type: meta.mime_type || "image/jpeg" } : null;
+  } catch (err) {
+    console.error("WhatsApp media network error", err?.message || err);
+    return null;
+  }
+}

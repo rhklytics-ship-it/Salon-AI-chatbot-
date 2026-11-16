@@ -7,12 +7,14 @@ export function useWhatsAppStoreForTests(s) { testStore = s; }
 const store = () => testStore || getStore({ name: "whatsapp", consistency: "strong" });
 
 const DAY = 24 * 60 * 60 * 1000;
-const fresh = () => ({ history: [], lang: "en", bookings: [], pending: null, offered: null, hits: [], at: 0 });
+// pending: a time the customer tapped, waiting for their name (or "move" confirmation)
+// offered: the times last shown.  noteFor / issueFor: the next message is saved as booking notes / a complaint.
+const fresh = () => ({ history: [], lang: "en", bookings: [], pending: null, offered: null, noteFor: null, issueFor: null, hits: [], at: 0 });
 
 export async function loadChat(biz, phone) {
   const s = (await store().get(`chat/${biz}/${phone}`, { type: "json" })) || fresh();
   // A new day is a new conversation; bookings made earlier are still remembered.
-  if (s.at && Date.now() - s.at > DAY) { s.history = []; s.pending = null; s.offered = null; }
+  if (s.at && Date.now() - s.at > DAY) { s.history = []; s.pending = null; s.offered = null; s.noteFor = null; }
   return { ...fresh(), ...s };
 }
 
